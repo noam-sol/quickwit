@@ -96,9 +96,9 @@ impl DocFileReader {
         uri: &Uri,
         offset: usize,
     ) -> anyhow::Result<Self> {
-        let (dir_uri, file_name) = dir_and_filename(uri)?;
-        let storage = storage_resolver.resolve(&dir_uri).await?;
-        let file_size = storage.file_num_bytes(file_name).await?.try_into().unwrap();
+        let (dir_uri, file_name) = dir_and_filename(uri).context("dir_and_filename")?;
+        let storage = storage_resolver.resolve(&dir_uri).await.context("storage resolve")?;
+        let file_size = storage.file_num_bytes(file_name).await.context("file_num_bytes")?.try_into().unwrap();
         if file_size == 0 {
             return Ok(DocFileReader::empty());
         }
@@ -106,7 +106,7 @@ impl DocFileReader {
         // starts from the beginning of the file, decompresses and skips the
         // first `offset` bytes.
         let reader = if uri.extension() == Some("gz") {
-            let stream = storage.get_slice_stream(file_name, 0..file_size).await?;
+            let stream = storage.get_slice_stream(file_name, 0..file_size).await.context("get_slice_stream gz")?;
             let decompressed_stream = Box::new(GzipDecoder::new(BufReader::new(stream)));
             DocFileReader {
                 reader: SkipReader::new(decompressed_stream, offset),
@@ -115,7 +115,7 @@ impl DocFileReader {
         } else {
             let stream = storage
                 .get_slice_stream(file_name, offset..file_size)
-                .await?;
+                .await.context("get_slice_stream")?;
             DocFileReader {
                 reader: SkipReader::new(stream, 0),
                 next_offset: offset as u64,
