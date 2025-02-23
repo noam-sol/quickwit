@@ -182,7 +182,7 @@ impl ReadyMessage {
                     &uri,
                     self.position,
                 )
-                .await?;
+                .await.with_context(|| format!("creating object uri batch reader: {uri}"))?;
                 if batch_reader.is_eof() {
                     Ok(None)
                 } else {
