@@ -526,7 +526,13 @@ impl DocProcessor {
         }
     }
 
-    fn process_json_doc(&self, json_doc: JsonDoc) -> Result<ProcessedDoc, DocProcessorError> {
+    fn process_json_doc(&self, mut json_doc: JsonDoc) -> Result<ProcessedDoc, DocProcessorError> {
+        if !json_doc.json_obj.contains_key("_index_timestamp") {
+            if let Some(now) = serde_json::Number::from_f64(time::OffsetDateTime::now_utc().unix_timestamp() as f64) {
+                json_doc.json_obj.insert("_index_timestamp".to_string(), serde_json::Value::Number(now));
+            }
+        }
+
         let num_bytes = json_doc.num_bytes;
 
         let (partition, doc) = self
