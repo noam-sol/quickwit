@@ -7,16 +7,17 @@ on:
         description: 'Set docker image tag'
         required: true
         default: 'vega_edge'
-  push:
-    branches:
-      - vega-main
-    paths:
-      - "quickwit/**"
-    tags:
-      - airmail
-      - happy-plazza
-      - qw*
-      - v*
+  # On push currently doesn't work, run manually.
+  # push:
+  #   branches:
+  #     - vega-main
+  #   paths:
+  #     - "quickwit/**"
+  #   tags:
+  #     - airmail
+  #     - happy-plazza
+  #     - qw*
+  #     - v*
 env:
   REGISTRY_IMAGE: quickwit
 
