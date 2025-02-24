@@ -61,6 +61,7 @@ quickwit-metastore = { workspace = true }
 quickwit-opentelemetry = { workspace = true }
 quickwit-proto = { workspace = true }
 quickwit-storage = { workspace = true }
+urlencoding = "2.1.3"
 
 [features]
 gcp-pubsub = [
