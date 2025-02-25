@@ -20,8 +20,13 @@ ENV QW_COMMIT_DATE=$QW_COMMIT_DATE
 ENV QW_COMMIT_HASH=$QW_COMMIT_HASH
 ENV QW_COMMIT_TAGS=$QW_COMMIT_TAGS
 
+# Use dirs outside /quickwit, so docker doesn't invalidate the COPY and RUN cargo build layers.
+ENV CARGO_HOME=/usr/local/cargo
+ENV CARGO_TARGET_DIR=/usr/local/cargo/target
+
 RUN apt-get -y update \
-    && apt-get -y install ca-certificates \
+    && apt-get -y install --no-install-recommends \
+                          ca-certificates \
                           clang \
                           cmake \
                           libssl-dev \
@@ -31,6 +36,11 @@ RUN apt-get -y update \
 
 # Required by tonic
 RUN rustup component add rustfmt
+
+# Download/Cache dependencies (without actually building).
+# If quickwit source code changes, but Cargo.lock / Cargo.toml don't, the dependecy downloading will be skipped.
+COPY quickwit/Cargo.lock quickwit/Cargo.toml ./
+RUN cargo build --no-dev --release --features $CARGO_FEATURES || true
 
 COPY quickwit /quickwit
 COPY config/quickwit.yaml /quickwit/config/quickwit.yaml
@@ -45,9 +55,10 @@ RUN echo "Building workspace with feature(s) '$CARGO_FEATURES' and profile '$CAR
         --features $CARGO_FEATURES \
         --bin quickwit \
         $(test "$CARGO_PROFILE" = "release" && echo "--release") \
+        --target-dir $CARGO_TARGET_DIR \
     && echo "Copying binaries to /quickwit/bin" \
     && mkdir -p /quickwit/bin \
-    && find target/$CARGO_PROFILE -maxdepth 1 -perm /a+x -type f -exec mv {} /quickwit/bin \;
+    && find $CARGO_TARGET_DIR/$CARGO_PROFILE -maxdepth 1 -perm /a+x -type f -exec mv {} /quickwit/bin \;
 
 
 FROM debian:bookworm-slim AS quickwit
@@ -58,7 +69,8 @@ LABEL org.opencontainers.image.vendor="Quickwit, Inc."
 LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 RUN apt-get -y update \
-    && apt-get -y install ca-certificates \
+    && apt-get -y install --no-install-recommends \
+                          ca-certificates \
                           libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
