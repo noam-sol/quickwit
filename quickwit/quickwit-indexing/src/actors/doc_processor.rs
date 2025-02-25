@@ -16,7 +16,7 @@ use std::string::FromUtf8Error;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use async_trait::async_trait;
 use bytes::Bytes;
 use quickwit_actors::{Actor, ActorContext, ActorExitStatus, Handler, Mailbox, QueueCapacity};
@@ -418,7 +418,7 @@ impl DocProcessorCounters {
         self.valid.record_doc(num_bytes);
     }
 
-    pub fn record_error(&self, error: DocProcessorError, num_bytes: u64) {
+    pub fn record_error(&self, error: &DocProcessorError, num_bytes: u64) {
         self.num_bytes_total.fetch_add(num_bytes, Ordering::Relaxed);
         match error {
             DocProcessorError::DocMapperParsing(_) => {
@@ -496,7 +496,7 @@ impl DocProcessor {
         Ok(Some(timestamp))
     }
 
-    fn process_raw_doc(&mut self, raw_doc: Bytes, processed_docs: &mut Vec<ProcessedDoc>) {
+    fn process_raw_doc(&mut self, raw_doc: Bytes, processed_docs: &mut Vec<ProcessedDoc>) -> Result<(), DocProcessorError> {
         let num_bytes = raw_doc.len();
 
         #[cfg(feature = "vrl")]
@@ -520,10 +520,13 @@ impl DocProcessor {
                         source_id = self.counters.source_id,
                         "{error}",
                     );
-                    self.counters.record_error(error, num_bytes as u64);
+                    self.counters.record_error(&error, num_bytes as u64);
+                    return Err(error);
                 }
             }
         }
+
+        Ok(())
     }
 
     fn process_json_doc(&self, mut json_doc: JsonDoc) -> Result<ProcessedDoc, DocProcessorError> {
@@ -617,7 +620,8 @@ impl Handler<RawDocBatch> for DocProcessor {
 
         for raw_doc in raw_doc_batch.docs {
             let _protected_zone_guard = ctx.protect_zone();
-            self.process_raw_doc(raw_doc, &mut processed_docs);
+            self.process_raw_doc(raw_doc, &mut processed_docs).
+                map_err(|e| ActorExitStatus::from(anyhow!("failed to process raw doc: {}", e)))?;
             ctx.record_progress();
         }
         let processed_doc_batch = ProcessedDocBatch::new(
