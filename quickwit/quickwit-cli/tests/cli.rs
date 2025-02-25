@@ -489,9 +489,12 @@ async fn test_cmd_search_with_snippets() -> Result<()> {
         client_args: test_env.default_client_args(),
         sort_by_score: false,
     };
-    let search_response = search_index(args).await.unwrap();
+    let mut search_response = search_index(args).await.unwrap();
     assert_eq!(search_response.hits.len(), 1);
-    let hit = &search_response.hits[0];
+    let hit = &mut search_response.hits[0];
+    if let Value::Object(ref mut map) = hit {
+        map.remove("_index_timestamp");
+    }
     assert_eq!(hit, &json!({"event": "baz", "ts": 72057604}));
     assert_eq!(
         search_response.snippets.unwrap()[0],
