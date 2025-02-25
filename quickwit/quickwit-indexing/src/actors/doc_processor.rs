@@ -192,14 +192,17 @@ enum OneOrMany<T> {
 #[cfg(feature = "vrl")]
 fn one_or_many_from_vrl_doc(vrl_doc: VrlDoc) -> OneOrMany<Result<JsonDoc, DocProcessorError>> {
     match serde_json::to_value(vrl_doc.vrl_value) {
-        Ok(JsonValue::Object(json_obj)) => OneOrMany::One(Ok(JsonDoc::new(json_obj, vrl_doc.num_bytes))),
+        Ok(JsonValue::Object(json_obj)) => {
+            OneOrMany::One(Ok(JsonDoc::new(json_obj, vrl_doc.num_bytes)))
+        }
         Ok(JsonValue::Array(json_arr)) => {
             let num_bytes = vrl_doc.num_bytes / json_arr.len();
-            let results = json_arr.into_iter()
+            let results = json_arr
+                .into_iter()
                 .map(|obj| JsonDoc::try_from_json_value(obj, num_bytes))
                 .collect::<Vec<_>>();
             OneOrMany::Many(results)
-        },
+        }
         Err(e) => OneOrMany::One(Err(DocProcessorError::from(e))),
         _ => OneOrMany::One(Err(DocProcessorError::JsonParsing(
             "document is not an object or array".to_string(),
@@ -496,7 +499,11 @@ impl DocProcessor {
         Ok(Some(timestamp))
     }
 
-    fn process_raw_doc(&mut self, raw_doc: Bytes, processed_docs: &mut Vec<ProcessedDoc>) -> Result<(), DocProcessorError> {
+    fn process_raw_doc(
+        &mut self,
+        raw_doc: Bytes,
+        processed_docs: &mut Vec<ProcessedDoc>,
+    ) -> Result<(), DocProcessorError> {
         let num_bytes = raw_doc.len();
 
         #[cfg(feature = "vrl")]
@@ -531,8 +538,13 @@ impl DocProcessor {
 
     fn process_json_doc(&self, mut json_doc: JsonDoc) -> Result<ProcessedDoc, DocProcessorError> {
         if !json_doc.json_obj.contains_key("_index_timestamp") {
-            if let Some(now) = serde_json::Number::from_f64(time::OffsetDateTime::now_utc().unix_timestamp() as f64) {
-                json_doc.json_obj.insert("_index_timestamp".to_string(), serde_json::Value::Number(now));
+            if let Some(now) = serde_json::Number::from_f64(
+                time::OffsetDateTime::now_utc().unix_timestamp() as f64,
+            ) {
+                json_doc.json_obj.insert(
+                    "_index_timestamp".to_string(),
+                    serde_json::Value::Number(now),
+                );
             }
         }
 
@@ -620,8 +632,8 @@ impl Handler<RawDocBatch> for DocProcessor {
 
         for raw_doc in raw_doc_batch.docs {
             let _protected_zone_guard = ctx.protect_zone();
-            self.process_raw_doc(raw_doc, &mut processed_docs).
-                map_err(|e| ActorExitStatus::from(anyhow!("failed to process raw doc: {}", e)))?;
+            self.process_raw_doc(raw_doc, &mut processed_docs)
+                .map_err(|e| ActorExitStatus::from(anyhow!("failed to process raw doc: {}", e)))?;
             ctx.record_progress();
         }
         let processed_doc_batch = ProcessedDocBatch::new(
