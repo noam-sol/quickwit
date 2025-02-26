@@ -21,6 +21,7 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::BatchConfigBuilder;
 use opentelemetry_sdk::{trace, Resource};
+use opentelemetry_datadog::DatadogPipelineBuilder;
 use quickwit_common::{get_bool_from_env, get_from_env_opt};
 use quickwit_serve::{BuildInfo, EnvFilterReloadFn};
 use time::format_description::BorrowedFormatItem;
@@ -62,12 +63,11 @@ pub fn setup_logging_and_tracing(
     // Note on disabling ANSI characters: setting the ansi boolean on event format is insufficient.
     // It is thus set on layers, see https://github.com/tokio-rs/tracing/issues/1817
     if get_bool_from_env(QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER_ENV_KEY, false) {
-        let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_tonic()
-            .build()
-            .context("failed to initialize OpenTelemetry OTLP exporter")?;
+        let datadog_exporter = DatadogPipelineBuilder::default()
+            .build_exporter()
+            .context("failed to initialize Datadog tracer")?;
         let batch_processor =
-            trace::BatchSpanProcessor::builder(otlp_exporter, opentelemetry_sdk::runtime::Tokio)
+            trace::BatchSpanProcessor::builder(datadog_exporter, opentelemetry_sdk::runtime::Tokio)
                 .with_batch_config(
                     BatchConfigBuilder::default()
                         // Quickwit can generate a lot of spans, especially in debug mode, and the
