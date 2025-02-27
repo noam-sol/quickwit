@@ -5232,6 +5232,7 @@ dependencies = [
  "opentelemetry-http",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
+ "reqwest 0.12.12",
  "rmp",
  "ryu",
  "thiserror 1.0.69",

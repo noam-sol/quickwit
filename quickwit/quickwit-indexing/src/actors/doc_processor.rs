@@ -503,7 +503,7 @@ impl DocProcessor {
         &mut self,
         raw_doc: Bytes,
         processed_docs: &mut Vec<ProcessedDoc>,
-    ) -> Result<(), DocProcessorError> {
+    ) -> anyhow::Result<()> {
         let num_bytes = raw_doc.len();
 
         #[cfg(feature = "vrl")]
@@ -528,7 +528,7 @@ impl DocProcessor {
                         "{error}",
                     );
                     self.counters.record_error(&error, num_bytes as u64);
-                    return Err(error);
+                    bail!("index id - {}, source_id - {}", self.counters.index_id, self.counters.source_id);
                 }
             }
         }
@@ -633,7 +633,10 @@ impl Handler<RawDocBatch> for DocProcessor {
         for raw_doc in raw_doc_batch.docs {
             let _protected_zone_guard = ctx.protect_zone();
             self.process_raw_doc(raw_doc, &mut processed_docs)
-                .map_err(|e| ActorExitStatus::from(anyhow!("failed to process raw doc: {}", e)))?;
+                .map_err(|e| {
+                    let partitions: Vec<_> = raw_doc_batch.checkpoint_delta.partitions().collect();
+                    ActorExitStatus::from(anyhow!("failed to process raw doc: {} (checkpoint delta: {:?}", e, partitions))
+                })?;
             ctx.record_progress();
         }
         let processed_doc_batch = ProcessedDocBatch::new(
