@@ -7,6 +7,13 @@ WORKDIR /quickwit/quickwit-ui
 RUN touch .gitignore_for_build_directory \
     && NODE_ENV=production make install build
 
+# Download/Cache dependencies (without actually building).
+# If quickwit source code changes, but Cargo.lock / Cargo.toml don't, the dependecy downloading will be skipped.
+FROM rust:bookworm AS deps-builder
+
+ENV CARGO_HOME=/usr/local/cargo
+COPY quickwit/Cargo.lock quickwit/Cargo.toml ./
+RUN cargo build --no-dev --release --features $CARGO_FEATURES || true
 
 FROM rust:bookworm AS bin-builder
 
@@ -37,18 +44,15 @@ RUN apt-get -y update \
 # Required by tonic
 RUN rustup component add rustfmt
 
-# Download/Cache dependencies (without actually building).
-# If quickwit source code changes, but Cargo.lock / Cargo.toml don't, the dependecy downloading will be skipped.
-COPY quickwit/Cargo.lock quickwit/Cargo.toml ./
-RUN cargo build --no-dev --release --features $CARGO_FEATURES || true
-
 COPY quickwit /quickwit
 COPY config/quickwit.yaml /quickwit/config/quickwit.yaml
 COPY --from=ui-builder /quickwit/quickwit-ui/build /quickwit/quickwit-ui/build
+COPY --from=deps-builder $CARGO_HOME $CARGO_HOME
 
 WORKDIR /quickwit
 
-RUN echo "Building workspace with feature(s) '$CARGO_FEATURES' and profile '$CARGO_PROFILE'" \
+RUN --mount=type=cache,target=$CARGO_TARGET_DIR \
+    echo "Building workspace with feature(s) '$CARGO_FEATURES' and profile '$CARGO_PROFILE'" \
     && RUSTFLAGS="--cfg tokio_unstable" \
         cargo build \
         -p quickwit-cli \
