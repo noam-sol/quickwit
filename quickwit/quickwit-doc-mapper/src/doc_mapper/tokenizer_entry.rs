@@ -17,7 +17,7 @@ use quickwit_query::{CodeTokenizer, DEFAULT_REMOVE_TOKEN_LENGTH};
 use serde::{Deserialize, Serialize};
 use tantivy::tokenizer::{
     AsciiFoldingFilter, LowerCaser, NgramTokenizer, RegexTokenizer, RemoveLongFilter,
-    SimpleTokenizer, TextAnalyzer, Token,
+    SimpleTokenizer, TextAnalyzer, Token, WhitespaceTokenizer,
 };
 
 /// A `TokenizerEntry` defines a custom tokenizer with its name and configuration.
@@ -49,6 +49,9 @@ impl TokenizerConfig {
                 TextAnalyzer::builder(quickwit_query::MultiLangTokenizer::default()).dynamic()
             }
             TokenizerType::SourceCode => TextAnalyzer::builder(CodeTokenizer::default()).dynamic(),
+            TokenizerType::Whitespace => {
+                TextAnalyzer::builder(WhitespaceTokenizer::default()).dynamic()
+            }
             TokenizerType::Ngram(options) => {
                 let tokenizer =
                     NgramTokenizer::new(options.min_gram, options.max_gram, options.prefix_only)
@@ -130,6 +133,7 @@ pub enum TokenizerType {
     Regex(RegexTokenizerOption),
     Simple,
     SourceCode,
+    Whitespace,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, utoipa::ToSchema)]
