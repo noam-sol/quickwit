@@ -92,6 +92,7 @@ pub fn analyze_text(text: &str, tokenizer: &TokenizerConfig) -> anyhow::Result<V
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TokenFilterType {
+    RemoveLongSize(usize),
     RemoveLong,
     LowerCaser,
     AsciiFolding,
@@ -108,6 +109,9 @@ enum TantivyTokenFilterEnum {
 impl TokenFilterType {
     fn tantivy_token_filter_enum(&self) -> TantivyTokenFilterEnum {
         match &self {
+            Self::RemoveLongSize(limit) => {
+                TantivyTokenFilterEnum::RemoveLong(RemoveLongFilter::limit(*limit))
+            }
             Self::RemoveLong => TantivyTokenFilterEnum::RemoveLong(RemoveLongFilter::limit(
                 DEFAULT_REMOVE_TOKEN_LENGTH,
             )),
