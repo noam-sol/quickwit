@@ -18,6 +18,7 @@ use std::{env, fmt};
 use anyhow::Context;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
+use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::BatchConfigBuilder;
 use opentelemetry_sdk::{trace, Resource};
@@ -64,6 +65,10 @@ pub fn setup_logging_and_tracing(
     if get_bool_from_env(QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER_ENV_KEY, false) {
         let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_tonic()
+            .with_endpoint(
+                get_from_env_opt::<String>("OTLP_URL")
+                    .unwrap_or_else(|| "http://localhost:4317".to_string()),
+            )
             .build()
             .context("failed to initialize OpenTelemetry OTLP exporter")?;
         let batch_processor =
