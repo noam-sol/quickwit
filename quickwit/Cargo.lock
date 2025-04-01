@@ -5217,29 +5217,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry-datadog"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf575cba36695d55ac2f7e4b58abdb262eba7ceeb48cc2ba47b4187e6eee5e91"
-dependencies = [
- "ahash 0.8.11",
- "futures-core",
- "http 1.1.0",
- "indexmap 2.6.0",
- "itoa",
- "once_cell",
- "opentelemetry",
- "opentelemetry-http",
- "opentelemetry-semantic-conventions",
- "opentelemetry_sdk",
- "reqwest 0.12.12",
- "rmp",
- "ryu",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
 name = "opentelemetry-http"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5284,12 +5261,6 @@ dependencies = [
  "prost 0.13.3",
  "tonic 0.12.3",
 ]
-
-[[package]]
-name = "opentelemetry-semantic-conventions"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc1b6902ff63b32ef6c489e8048c5e253e2e4a803ea3ea7e783914536eb15c52"
 
 [[package]]
 name = "opentelemetry_sdk"
@@ -6467,7 +6438,6 @@ dependencies = [
  "once_cell",
  "openssl-probe",
  "opentelemetry",
- "opentelemetry-datadog",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "predicates 3.1.2",
@@ -7856,17 +7826,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "rmp"
-version = "0.8.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "228ed7c16fa39782c3b3468e974aec2795e9089153cd08ee2e9aefb3613334c4"
-dependencies = [
- "byteorder",
- "num-traits",
- "paste",
 ]
 
 [[package]]
