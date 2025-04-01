@@ -64,9 +64,6 @@ pub fn setup_logging_and_tracing(
     // It is thus set on layers, see https://github.com/tokio-rs/tracing/issues/1817
     if get_bool_from_env(QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER_ENV_KEY, false) {
         let datadog_exporter = DatadogPipelineBuilder::default()
-            .with_agent_endpoint(
-                get_from_env_opt::<String>("DD_TRACE_AGENT_URL")
-                    .unwrap_or_else(|| "http://127.0.0.1:8126".to_string()))
             .build_exporter()
             .context("failed to initialize Datadog tracer")?;
         let batch_processor =
