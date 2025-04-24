@@ -21,7 +21,7 @@ use quickwit_proto::types::{DocMappingUid, IndexId};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use super::validate_index_config;
+use super::{validate_index_config, StorageCredentials};
 use crate::{
     validate_identifier, ConfigFormat, DocMapping, IndexConfig, IndexingSettings, RetentionPolicy,
     SearchSettings,
@@ -184,20 +184,22 @@ impl IndexConfigForSerialization {
 
         let index_uri = self.index_uri_or_fallback_to_default(default_index_root_uri)?;
 
+        validate_index_config(
+            &self.doc_mapping,
+            &self.indexing_settings,
+            &self.search_settings,
+            &self.retention_policy_opt,
+            &self.storage_credentials,
+        )?;
         let index_config = IndexConfig {
             index_id: self.index_id,
-            index_uri,
+            index_uri: index_uri.clone(),
             doc_mapping: self.doc_mapping,
             indexing_settings: self.indexing_settings,
             search_settings: self.search_settings,
             retention_policy_opt: self.retention_policy_opt,
+            storage_credentials: self.storage_credentials,
         };
-        validate_index_config(
-            &index_config.doc_mapping,
-            &index_config.indexing_settings,
-            &index_config.search_settings,
-            &index_config.retention_policy_opt,
-        )?;
         Ok(index_config)
     }
 }
@@ -239,6 +241,8 @@ pub struct IndexConfigV0_8 {
     #[serde(rename = "retention")]
     #[serde(default)]
     pub retention_policy_opt: Option<RetentionPolicy>,
+    #[serde(default)]
+    pub storage_credentials: StorageCredentials,
 }
 
 impl From<IndexConfig> for IndexConfigV0_8 {
@@ -250,6 +254,7 @@ impl From<IndexConfig> for IndexConfigV0_8 {
             indexing_settings: index_config.indexing_settings,
             search_settings: index_config.search_settings,
             retention_policy_opt: index_config.retention_policy_opt,
+            storage_credentials: index_config.storage_credentials,
         }
     }
 }

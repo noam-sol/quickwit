@@ -127,6 +127,19 @@ pub async fn create_s3_client(s3_storage_config: &S3StorageConfig) -> S3Client {
     let credentials_provider =
         get_credentials_provider(s3_storage_config).or(aws_config.credentials_provider());
     let region = get_region(s3_storage_config).or(aws_config.region().cloned());
+
+    if let Some(role_arn) = role_arn_opt {
+        credentials_provider = assume_iam_role(
+            aws_config,
+            credentials_provider.clone(),
+            region.clone(),
+            role_arn.to_string(),
+            external_id_opt.map(|id| id.to_string()),
+        )
+        .await
+        .or(credentials_provider);
+    }
+
     let mut s3_config = aws_sdk_s3::Config::builder()
         .behavior_version(BehaviorVersion::v2024_03_28())
         .region(region);

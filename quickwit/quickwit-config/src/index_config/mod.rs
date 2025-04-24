@@ -253,6 +253,62 @@ pub struct IndexConfig {
     pub indexing_settings: IndexingSettings,
     pub search_settings: SearchSettings,
     pub retention_policy_opt: Option<RetentionPolicy>,
+    #[serde(default)]
+    pub storage_credentials: StorageCredentials,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StorageCredentials {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub s3: Option<S3StorageCredentials>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct S3StorageCredentials {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role_arn: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+}
+
+impl StorageCredentials {
+    pub fn validate(&self) -> anyhow::Result<()> {
+        let Some(s3_creds) = &self.s3 else {
+            return Ok(());
+        };
+
+        if let Some(role_arn) = &s3_creds.role_arn {
+            if !role_arn.starts_with("arn:aws:iam::") {
+                return Err(anyhow::anyhow!(
+                    "Invalid role ARN format: {}. Expected format: \
+                     arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
+                    role_arn
+                ));
+            }
+        }
+
+        if s3_creds.external_id.is_some() && s3_creds.role_arn.is_none() {
+            return Err(anyhow::anyhow!(
+                "S3 external ID can only be used with role ARN, but no role ARN was provided"
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn get_s3_role_arn(&self) -> Option<&str> {
+        self.s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.role_arn.as_deref())
+    }
+
+    pub fn get_s3_external_id(&self) -> Option<&str> {
+        self.s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.external_id.as_deref())
+    }
 }
 
 impl IndexConfig {
@@ -361,6 +417,7 @@ impl IndexConfig {
             indexing_settings,
             search_settings,
             retention_policy_opt: Default::default(),
+            storage_credentials: StorageCredentials::default(),
         }
     }
 }
@@ -466,6 +523,7 @@ impl crate::TestableForRegression for IndexConfig {
             indexing_settings,
             retention_policy_opt: retention_policy,
             search_settings,
+            storage_credentials: StorageCredentials::default(),
         }
     }
 
@@ -498,6 +556,7 @@ pub(super) fn validate_index_config(
     indexing_settings: &IndexingSettings,
     search_settings: &SearchSettings,
     retention_policy_opt: &Option<RetentionPolicy>,
+    storage_credentials: &StorageCredentials,
 ) -> anyhow::Result<()> {
     // Note: this needs a deep refactoring to separate the doc mapping configuration,
     // and doc mapper implementations.
@@ -515,6 +574,9 @@ pub(super) fn validate_index_config(
             "retention policy requires a timestamp field, but doc mapping does not declare one"
         );
     }
+
+    storage_credentials.validate()?;
+
     Ok(())
 }
 
@@ -527,6 +589,53 @@ mod tests {
     use super::*;
     use crate::merge_policy_config::MergePolicyConfig;
     use crate::ConfigFormat;
+
+    #[test]
+    fn test_storage_credentials_validation() {
+        // Valid setup with role ARN
+        let storage_credentials = StorageCredentials {
+            s3: Some(S3StorageCredentials {
+                role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
+                external_id: None,
+            }),
+        };
+        assert!(storage_credentials.validate().is_ok());
+
+        // Invalid role ARN format (error)
+        let storage_credentials = StorageCredentials {
+            s3: Some(S3StorageCredentials {
+                role_arn: Some("invalid-role-arn".to_string()),
+                external_id: None,
+            }),
+        };
+        let error = storage_credentials.validate().unwrap_err();
+        assert!(error.to_string().contains("Invalid role ARN format"));
+
+        // No credentials (valid)
+        let storage_credentials = StorageCredentials { s3: None };
+        assert!(storage_credentials.validate().is_ok());
+
+        // Valid role ARN with external ID (valid)
+        let storage_credentials = StorageCredentials {
+            s3: Some(S3StorageCredentials {
+                role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
+                external_id: Some("my-external-id".to_string()),
+            }),
+        };
+        assert!(storage_credentials.validate().is_ok());
+
+        // External ID without role ARN (error)
+        let storage_credentials = StorageCredentials {
+            s3: Some(S3StorageCredentials {
+                role_arn: None,
+                external_id: Some("my-external-id".to_string()),
+            }),
+        };
+        let error = storage_credentials.validate().unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("S3 external ID can only be used with role ARN"));
+    }
 
     fn get_index_config_filepath(index_config_filename: &str) -> String {
         format!(
