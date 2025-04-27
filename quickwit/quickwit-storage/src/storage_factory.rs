@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use quickwit_common::uri::Uri;
-use quickwit_config::StorageBackend;
+use quickwit_config::{StorageBackend, StorageCredentials};
 
 use crate::{Storage, StorageResolverError};
 
@@ -30,6 +30,15 @@ pub trait StorageFactory: Send + Sync + 'static {
 
     /// Returns the appropriate [`Storage`] object for the URI.
     async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError>;
+
+    /// Returns the appropriate [`Storage`] object with the storage credentials.
+    async fn resolve_with_storage_credentials(
+        &self,
+        uri: &Uri,
+        _storage_credentials: StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
+        self.resolve(uri).await
+    }
 }
 
 /// A storage factory for handling unsupported or unavailable storage backends.
@@ -53,6 +62,16 @@ impl StorageFactory for UnsupportedStorage {
     }
 
     async fn resolve(&self, _uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+        Err(StorageResolverError::UnsupportedBackend(
+            self.message.to_string(),
+        ))
+    }
+
+    async fn resolve_with_storage_credentials(
+        &self,
+        _uri: &Uri,
+        _storage_credentials: StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         Err(StorageResolverError::UnsupportedBackend(
             self.message.to_string(),
         ))

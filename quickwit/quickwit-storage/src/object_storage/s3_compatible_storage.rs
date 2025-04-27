@@ -122,9 +122,68 @@ fn get_region(s3_storage_config: &S3StorageConfig) -> Option<Region> {
     })
 }
 
-pub async fn create_s3_client(s3_storage_config: &S3StorageConfig) -> S3Client {
+/// Attempts to assume an IAM role and returns the credentials provider for the assumed role.
+/// Returns None if the role couldn't be assumed.
+async fn assume_iam_role(
+    aws_config: &aws_config::SdkConfig,
+    credentials_provider: Option<SharedCredentialsProvider>,
+    region: Option<Region>,
+    role_arn: String,
+    external_id: Option<String>,
+) -> Option<SharedCredentialsProvider> {
+    let region = region.unwrap_or_else(|| {
+        warn!("no region specified in storage config or environment, defaulting to us-east-1");
+        Region::new("us-east-1")
+    });
+
+    info!(role_arn=%role_arn, region=%region, external_id=?external_id, "assuming IAM role for S3 access");
+
+    let session_name = format!(
+        "quickwit-{}",
+        ulid::Ulid::new()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("session")
+    );
+
+    let provider = match credentials_provider {
+        Some(provider) => provider.clone(),
+        None => {
+            warn!(
+                "missing credentials provider when trying to build AWS config for role assumption"
+            );
+            return None;
+        }
+    };
+
+    let config = aws_config
+        .to_builder()
+        .credentials_provider(provider)
+        .build();
+    let mut assume_role_builder =
+        aws_config::sts::AssumeRoleProvider::builder(role_arn).session_name(session_name);
+
+    if let Some(external_id) = external_id {
+        assume_role_builder = assume_role_builder.external_id(external_id);
+    }
+
+    let assume_role_result = assume_role_builder
+        .configure(&config)
+        .region(region)
+        .build()
+        .await;
+
+    Some(SharedCredentialsProvider::new(assume_role_result))
+}
+
+pub async fn create_s3_client(
+    s3_storage_config: &S3StorageConfig,
+    role_arn_opt: Option<String>,
+    external_id_opt: Option<String>,
+) -> S3Client {
     let aws_config = get_aws_config().await;
-    let credentials_provider =
+    let mut credentials_provider =
         get_credentials_provider(s3_storage_config).or(aws_config.credentials_provider());
     let region = get_region(s3_storage_config).or(aws_config.region().cloned());
 
@@ -163,12 +222,23 @@ pub async fn create_s3_client(s3_storage_config: &S3StorageConfig) -> S3Client {
 }
 
 impl S3CompatibleObjectStorage {
-    /// Creates an object storage given a region and an uri.
+    /// Creates an object storage given a region and an uri
     pub async fn from_uri(
         s3_storage_config: &S3StorageConfig,
         uri: &Uri,
     ) -> Result<Self, StorageResolverError> {
-        let s3_client = create_s3_client(s3_storage_config).await;
+        Self::from_uri_with_role(s3_storage_config, uri, None, None).await
+    }
+
+    /// Creates an object storage given a region and an uri, optionally with a role ARN and external
+    /// ID.
+    pub async fn from_uri_with_role(
+        s3_storage_config: &S3StorageConfig,
+        uri: &Uri,
+        role_arn_opt: Option<String>,
+        external_id_opt: Option<String>,
+    ) -> Result<Self, StorageResolverError> {
+        let s3_client = create_s3_client(s3_storage_config, role_arn_opt, external_id_opt).await;
         Self::from_uri_and_client(s3_storage_config, uri, s3_client).await
     }
 

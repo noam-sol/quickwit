@@ -15,10 +15,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use aws_sdk_s3::Client as S3Client;
 use quickwit_common::uri::Uri;
-use quickwit_config::{S3StorageConfig, StorageBackend};
-use tokio::sync::OnceCell;
+use quickwit_config::{S3StorageConfig, StorageBackend, StorageCredentials};
 
 use super::s3_compatible_storage::create_s3_client;
 use crate::{
@@ -28,21 +26,12 @@ use crate::{
 /// S3 compatible object storage resolver.
 pub struct S3CompatibleObjectStorageFactory {
     storage_config: S3StorageConfig,
-    // we cache the S3Client so we don't rebuild one every time we build a new Storage (for
-    // every search query).
-    // We don't build it in advance because we don't know if this factory is one that will
-    // end up being used, or if something like azure, gcs, or even local files, will be used
-    // instead.
-    s3_client: OnceCell<S3Client>,
 }
 
 impl S3CompatibleObjectStorageFactory {
     /// Creates a new S3-compatible storage factory.
     pub fn new(storage_config: S3StorageConfig) -> Self {
-        Self {
-            storage_config,
-            s3_client: OnceCell::new(),
-        }
+        Self { storage_config }
     }
 }
 
@@ -53,14 +42,32 @@ impl StorageFactory for S3CompatibleObjectStorageFactory {
     }
 
     async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
-        let s3_client = self
-            .s3_client
-            .get_or_init(|| create_s3_client(&self.storage_config))
+        self.resolve_with_storage_credentials(uri, StorageCredentials::default())
             .await
-            .clone();
+    }
+
+    async fn resolve_with_storage_credentials(
+        &self,
+        uri: &Uri,
+        storage_credentials: StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
+        let role_arn_opt = storage_credentials
+            .s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.role_arn.as_deref())
+            .map(ToString::to_string);
+
+        let external_id_opt = storage_credentials
+            .s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.external_id.as_deref().map(|s| s.to_string()));
+
+        let s3_client = create_s3_client(&self.storage_config, role_arn_opt, external_id_opt).await;
+
         let storage =
             S3CompatibleObjectStorage::from_uri_and_client(&self.storage_config, uri, s3_client)
                 .await?;
+
         Ok(Arc::new(DebouncedStorage::new(storage)))
     }
 }

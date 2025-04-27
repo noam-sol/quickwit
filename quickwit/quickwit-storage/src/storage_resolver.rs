@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use once_cell::sync::Lazy;
 use quickwit_common::uri::{Protocol, Uri};
-use quickwit_config::{StorageBackend, StorageConfigs};
+use quickwit_config::{StorageBackend, StorageConfigs, StorageCredentials};
 
 use crate::local_file_storage::LocalFileStorageFactory;
 use crate::ram_storage::RamStorageFactory;
@@ -50,6 +50,16 @@ impl StorageResolver {
 
     /// Resolves the given URI.
     pub async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+        self.resolve_with_storage_credentials(uri, StorageCredentials::default())
+            .await
+    }
+
+    /// Resolves the given URI using index-specific configuration.
+    pub async fn resolve_with_storage_credentials<'a>(
+        &self,
+        uri: &Uri,
+        storage_credentials: StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let backend = match uri.protocol() {
             Protocol::Azure => StorageBackend::Azure,
             Protocol::File => StorageBackend::File,
@@ -68,7 +78,9 @@ impl StorageResolver {
             let message = format!("no storage factory is registered for {}", uri.protocol());
             StorageResolverError::UnsupportedBackend(message)
         })?;
-        let storage = storage_factory.resolve(uri).await?;
+        let storage = storage_factory
+            .resolve_with_storage_credentials(uri, storage_credentials)
+            .await?;
         Ok(storage)
     }
 
