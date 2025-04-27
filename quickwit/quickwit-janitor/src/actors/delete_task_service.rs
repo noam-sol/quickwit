@@ -162,7 +162,13 @@ impl DeleteTaskService {
         ctx: &ActorContext<Self>,
     ) -> anyhow::Result<()> {
         let index_uri = index_config.index_uri.clone();
-        let index_storage = self.storage_resolver.resolve(&index_uri).await?;
+        let index_storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(
+                &index_uri,
+                Some(index_config.storage_credentials.clone()),
+            )
+            .await?;
         let index_metadata_request =
             IndexMetadataRequest::for_index_id(index_config.index_id.to_string());
         let index_metadata = self

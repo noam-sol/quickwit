@@ -229,7 +229,13 @@ impl SearchService for SearchServiceImpl {
         fetch_docs_request: FetchDocsRequest,
     ) -> crate::Result<FetchDocsResponse> {
         let index_uri = Uri::from_str(&fetch_docs_request.index_uri)?;
-        let storage = self.storage_resolver.resolve(&index_uri).await?;
+        let storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(
+                &index_uri,
+                quickwit_config::StorageCredentials::default(),
+            )
+            .await?;
         let snippet_request_opt: Option<&SnippetRequest> =
             fetch_docs_request.snippet_request.as_ref();
         let doc_mapper = deserialize_doc_mapper(&fetch_docs_request.doc_mapper)?;
@@ -267,7 +273,13 @@ impl SearchService for SearchServiceImpl {
             .request
             .ok_or_else(|| SearchError::Internal("no search request".to_string()))?;
         let index_uri = Uri::from_str(&leaf_stream_request.index_uri)?;
-        let storage = self.storage_resolver.resolve(&index_uri).await?;
+        let storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(
+                &index_uri,
+                quickwit_config::StorageCredentials::default(),
+            )
+            .await?;
         let doc_mapper = deserialize_doc_mapper(&leaf_stream_request.doc_mapper)?;
         let leaf_receiver = leaf_search_stream(
             self.searcher_context.clone(),
@@ -302,7 +314,13 @@ impl SearchService for SearchServiceImpl {
             .list_terms_request
             .ok_or_else(|| SearchError::Internal("no search request".to_string()))?;
         let index_uri = Uri::from_str(&leaf_search_request.index_uri)?;
-        let storage = self.storage_resolver.resolve(&index_uri).await?;
+        let storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(
+                &index_uri,
+                quickwit_config::StorageCredentials::default(),
+            )
+            .await?;
         let split_ids = leaf_search_request.split_offsets;
 
         let leaf_search_response = leaf_list_terms(
@@ -356,7 +374,13 @@ impl SearchService for SearchServiceImpl {
         list_fields_req: LeafListFieldsRequest,
     ) -> crate::Result<ListFieldsResponse> {
         let index_uri = Uri::from_str(&list_fields_req.index_uri)?;
-        let storage = self.storage_resolver.resolve(&index_uri).await?;
+        let storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(
+                &index_uri,
+                quickwit_config::StorageCredentials::default(),
+            )
+            .await?;
         let index_id = list_fields_req.index_id;
         let split_ids = list_fields_req.split_offsets;
         leaf_list_fields(

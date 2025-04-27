@@ -283,7 +283,10 @@ impl IndexingService {
             })?;
         let storage = self
             .storage_resolver
-            .resolve(&index_config.index_uri)
+            .resolve_with_storage_credentials(
+                &index_config.index_uri,
+                index_config.storage_credentials.clone(),
+            )
             .await
             .map_err(|error| {
                 let message = format!("failed to spawn indexing pipeline: {error}");

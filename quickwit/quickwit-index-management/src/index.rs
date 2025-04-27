@@ -174,7 +174,10 @@ impl IndexService {
             .deserialize_index_metadata()?;
         let index_uid = index_metadata.index_uid.clone();
         let index_uri = index_metadata.into_index_config().index_uri.clone();
-        let storage = self.storage_resolver.resolve(&index_uri).await?;
+        let storage = self
+            .storage_resolver
+            .resolve_with_storage_credentials(&index_uri, None)
+            .await?;
 
         if dry_run {
             let list_splits_request = ListSplitsRequest::try_from_index_uid(index_uid)?;
@@ -356,7 +359,10 @@ impl IndexService {
         let index_config = index_metadata.into_index_config();
         let storage = self
             .storage_resolver
-            .resolve(&index_config.index_uri)
+            .resolve_with_storage_credentials(
+                &index_config.index_uri,
+                Some(index_config.storage_credentials.clone()),
+            )
             .await?;
 
         let deleted_entries = run_garbage_collect(
@@ -392,9 +398,13 @@ impl IndexService {
             .await?
             .deserialize_index_metadata()?;
         let index_uid = index_metadata.index_uid.clone();
+        let index_config = index_metadata.clone().into_index_config();
         let storage = self
             .storage_resolver
-            .resolve(index_metadata.index_uri())
+            .resolve_with_storage_credentials(
+                index_metadata.index_uri(),
+                Some(index_config.storage_credentials.clone()),
+            )
             .await?;
         let list_splits_request = ListSplitsRequest::try_from_index_uid(index_uid.clone())?;
         let splits_metadata: Vec<SplitMetadata> = self
@@ -551,7 +561,12 @@ pub async fn validate_storage_uri(
     storage_resolver: &StorageResolver,
     index_config: &IndexConfig,
 ) -> anyhow::Result<()> {
-    storage_resolver.resolve(&index_config.index_uri).await?;
+    storage_resolver
+        .resolve_with_storage_credentials(
+            &index_config.index_uri,
+            Some(index_config.storage_credentials.clone()),
+        )
+        .await?;
     Ok(())
 }
 
