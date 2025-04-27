@@ -249,6 +249,7 @@ Create an index by posting an `IndexConfig` payload. The API accepts JSON with `
 | `indexing_settings` | `IndexingSettings` | Indexing settings object as specified in the [index config docs](../configuration/index-config.md#indexing-settings). |                                       |
 | `search_settings`   | `SearchSettings`   | Search settings object as specified in the [index config docs](../configuration/index-config.md#search-settings).     |                                       |
 | `retention`         | `Retention`        | Retention policy object as specified in the [index config docs](../configuration/index-config.md#retention-policy).   |                                       |
+| `storage_credentials` | `StorageCredentials` | Storage credentials object as specified in the [index config docs](../configuration/index-config.md#storage-credentials). |                                       |
 
 
 **Payload Example**
@@ -333,6 +334,7 @@ Updates the configurations of an index. This endpoint follows PUT semantics, whi
 - The search settings update is automatically picked up by searcher nodes when the next query is executed.
 - The indexing settings update is automatically picked up by the indexer nodes once the control plane emits a new indexing plan.
 - The doc mapping update is automatically picked up by the indexer nodes once the control plane emit a new indexing plan.
+- The storage credentials update is automatically applied when new storage connections are established.
 
 Updating the doc mapping doesn't reindex existing data. Queries and results are mapped on a best-effort basis when querying older splits. For more details, check [the reference](updating-mapper.md) out.
 
@@ -347,6 +349,7 @@ Updating the doc mapping doesn't reindex existing data. Queries and results are 
 | `indexing_settings` | `IndexingSettings` | Indexing settings object as specified in the [index config docs](../configuration/index-config.md#indexing-settings). |                                       |
 | `search_settings`   | `SearchSettings`   | Search settings object as specified in the [index config docs](../configuration/index-config.md#search-settings).     |                                       |
 | `retention`         | `Retention`        | Retention policy object as specified in the [index config docs](../configuration/index-config.md#retention-policy).   |                                       |
+| `storage_credentials` | `StorageCredentials` | Storage credentials object as specified in the [index config docs](../configuration/index-config.md#storage-credentials). |                                       |
 
 
 **Payload Example**

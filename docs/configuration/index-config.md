@@ -6,13 +6,14 @@ toc_max_heading_level: 4
 
 This page describes how to configure an index.
 
-In addition to the `index_id`, the index configuration lets you define five items:
+In addition to the `index_id`, the index configuration lets you define six items:
 
 - The **index-uri**: it defines where the index files should be stored.
 - The **doc mapping**: it defines how a document and the fields it contains are stored and indexed for a given index.
 - The **indexing settings**: it defines the timestamp field used for sharding, and some more advanced parameters like the merge policy.
 - The **search settings**: it defines the default search fields `default_search_fields`, a list of fields that Quickwit will search into if the user query does not explicitly target a field.
 - The **retention policy**: it defines how long Quickwit should keep the indexed data. If not specified, the data is stored forever.
+- The **storage credentials**: it defines authentication information for storage access, like AWS IAM role ARNs and External IDs.
 
 Configuration is set at index creation and can be changed using the [update endpoint](../reference/rest-api.md) or the [CLI](../reference/cli.md).
 
@@ -686,6 +687,28 @@ This section describes search settings for a given index.
 | Variable      | Description   | Default value |
 | ------------- | ------------- | ------------- |
 | `default_search_fields` | Default list of fields that will be used for search. The field names in this list may be declared explicitly in the schema, or may refer to a field captured by the dynamic mode. | `None` |
+
+## Storage credentials
+
+The storage credentials section allows you to configure authentication information for accessing storage, particularly AWS S3.
+
+```yaml
+storage_credentials:
+  s3:
+    role_arn: arn:aws:iam::123456789012:role/QuickwitRole
+    external_id: my-external-id-token
+```
+
+| Variable | Description | Default value |
+| -------- | ----------- | ------------- |
+| `storage_credentials.s3.role_arn` | ARN of the IAM role to assume when accessing S3 storage | `None` |
+| `storage_credentials.s3.external_id` | External ID token for enhanced security when assuming the IAM role | `None` |
+
+:::info
+Storage credentials are only applied when using the corresponding storage type. For example, S3 credentials will only be used with S3 URIs.
+:::
+
+For more detailed information about using IAM roles with S3, see [AWS S3 IAM Roles and External IDs](../guides/storage-setup/aws-s3-iam-roles.md).
 
 ## Retention policy
 
