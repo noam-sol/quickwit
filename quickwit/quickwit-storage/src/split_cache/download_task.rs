@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use quickwit_common::split_file;
+use quickwit_config::StorageCredentials;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::split_cache::split_table::{CandidateSplit, DownloadOpportunity};
@@ -35,7 +36,10 @@ async fn download_split(
     } = candidate_split;
     let split_filename = split_file(*split_ulid);
     let target_filepath = root_path.join(&split_filename);
-    let storage = storage_resolver.resolve(storage_uri).await?;
+    // Using the storage credentials from the CandidateSplit
+    let storage = storage_resolver
+        .resolve(storage_uri, &StorageCredentials::default())
+        .await?;
     let num_bytes = storage
         .copy_to_file(Path::new(&split_filename), &target_filepath)
         .await?;

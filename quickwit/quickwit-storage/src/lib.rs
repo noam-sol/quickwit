@@ -98,11 +98,14 @@ pub use crate::error::{
 pub async fn load_file(
     storage_resolver: &StorageResolver,
     uri: &Uri,
+    storage_credentials: &StorageCredentials,
 ) -> anyhow::Result<OwnedBytes> {
     let parent = uri
         .parent()
         .ok_or_else(|| anyhow::anyhow!("URI `{uri}` is not a valid file URI"))?;
-    let storage = storage_resolver.resolve(&parent).await?;
+    let storage = storage_resolver
+        .resolve(&parent, storage_credentials)
+        .await?;
     let file_name = uri
         .file_name()
         .ok_or_else(|| anyhow::anyhow!("URI `{uri}` is not a valid file URI"))?;
@@ -135,6 +138,7 @@ mod for_test {
 
 #[cfg(any(test, feature = "testsuite", feature = "integration-testsuite"))]
 pub use for_test::storage_for_test;
+use quickwit_config::StorageCredentials;
 
 #[cfg(test)]
 mod tests {
@@ -150,10 +154,14 @@ mod tests {
             .unwrap();
         let expected_bytes = tokio::fs::read_to_string("Cargo.toml").await.unwrap();
         assert_eq!(
-            load_file(&storage_resolver, &Uri::from_str("Cargo.toml").unwrap())
-                .await
-                .unwrap()
-                .as_slice(),
+            load_file(
+                &storage_resolver,
+                &Uri::from_str("Cargo.toml").unwrap(),
+                &StorageCredentials::default()
+            )
+            .await
+            .unwrap()
+            .as_slice(),
             expected_bytes.as_bytes()
         );
     }

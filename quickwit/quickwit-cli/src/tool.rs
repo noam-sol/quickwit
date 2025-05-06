@@ -763,7 +763,12 @@ async fn extract_split_cli(args: ExtractSplitArgs) -> anyhow::Result<()> {
         .index_metadata(IndexMetadataRequest::for_index_id(args.index_id))
         .await?
         .deserialize_index_metadata()?;
-    let index_storage = storage_resolver.resolve(index_metadata.index_uri()).await?;
+    let index_storage = storage_resolver
+        .resolve(
+            index_metadata.index_uri(),
+            &index_metadata.index_config().storage_credentials,
+        )
+        .await?;
     let split_file = PathBuf::from(format!("{}.split", args.split_id));
     let split_data = index_storage.get_all(split_file.as_path()).await?;
     let (_hotcache_bytes, bundle_storage) = BundleStorage::open_from_split_data_with_owned_bytes(

@@ -96,6 +96,7 @@ use quickwit_common::pubsub::EventBroker;
 use quickwit_common::runtimes::RuntimeType;
 use quickwit_config::{
     FileSourceNotification, FileSourceParams, IndexingSettings, SourceConfig, SourceParams,
+    StorageCredentials,
 };
 use quickwit_ingest::IngesterPool;
 use quickwit_metastore::checkpoint::{SourceCheckpoint, SourceCheckpointDelta};
@@ -428,7 +429,11 @@ pub async fn check_source_connectivity(
     match &source_config.source_params {
         SourceParams::File(FileSourceParams::Filepath(file_uri)) => {
             let (dir_uri, file_name) = dir_and_filename(file_uri)?;
-            let storage = storage_resolver.resolve(&dir_uri).await?;
+            // We currently don't support extra credentials for file source since we only
+            // use sqs notifications.
+            let storage = storage_resolver
+                .resolve(&dir_uri, &StorageCredentials::default())
+                .await?;
             storage.file_num_bytes(file_name).await?;
             Ok(())
         }

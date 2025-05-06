@@ -68,7 +68,11 @@ impl StorageFactory for AzureBlobStorageFactory {
         StorageBackend::Azure
     }
 
-    async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+    async fn resolve(
+        &self,
+        uri: &Uri,
+        _: &quickwit_config::StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let storage = AzureBlobStorage::from_uri(&self.storage_config, uri)?;
         Ok(Arc::new(DebouncedStorage::new(storage)))
     }

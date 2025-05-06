@@ -25,7 +25,8 @@ use quickwit_common::rand::append_random_suffix;
 use quickwit_common::uri::Uri;
 use quickwit_config::{
     build_doc_mapper, ConfigFormat, IndexConfig, IndexerConfig, IngestApiConfig, MetastoreConfigs,
-    SourceConfig, SourceInputFormat, SourceParams, VecSourceParams, INGEST_API_SOURCE_ID,
+    SourceConfig, SourceInputFormat, SourceParams, StorageCredentials, VecSourceParams,
+    INGEST_API_SOURCE_ID,
 };
 use quickwit_doc_mapper::DocMapper;
 use quickwit_ingest::{init_ingest_api, IngesterPool, QUEUES_DIR_NAME};
@@ -108,7 +109,9 @@ impl TestSandbox {
         let temp_dir = tempfile::tempdir()?;
         let indexer_config = IndexerConfig::for_test()?;
         let num_blocking_threads = 1;
-        let storage = storage_resolver.resolve(&index_uri).await?;
+        let storage = storage_resolver
+            .resolve(&index_uri, &StorageCredentials::default())
+            .await?;
         let universe = Universe::with_accelerated_time();
         let merge_scheduler_mailbox = universe.get_or_spawn_one();
         let queues_dir_path = temp_dir.path().join(QUEUES_DIR_NAME);

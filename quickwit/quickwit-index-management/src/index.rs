@@ -21,7 +21,7 @@ use itertools::Itertools;
 use quickwit_common::fs::{empty_dir, get_cache_directory_path};
 use quickwit_common::pretty::PrettySample;
 use quickwit_common::rate_limited_error;
-use quickwit_config::{validate_identifier, IndexConfig, SourceConfig};
+use quickwit_config::{validate_identifier, IndexConfig, SourceConfig, StorageCredentials};
 use quickwit_indexing::check_source_connectivity;
 use quickwit_metastore::{
     AddSourceRequestExt, CreateIndexResponseExt, IndexMetadata, IndexMetadataResponseExt,
@@ -173,10 +173,10 @@ impl IndexService {
             .await?
             .deserialize_index_metadata()?;
         let index_uid = index_metadata.index_uid.clone();
-        let index_uri = index_metadata.into_index_config().index_uri.clone();
+        let index_config = index_metadata.into_index_config();
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(&index_uri, None)
+            .resolve(&index_config.index_uri, &index_config.storage_credentials)
             .await?;
 
         if dry_run {
@@ -359,10 +359,7 @@ impl IndexService {
         let index_config = index_metadata.into_index_config();
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
-                &index_config.index_uri,
-                Some(index_config.storage_credentials.clone()),
-            )
+            .resolve(&index_config.index_uri, &index_config.storage_credentials)
             .await?;
 
         let deleted_entries = run_garbage_collect(
@@ -401,9 +398,9 @@ impl IndexService {
         let index_config = index_metadata.clone().into_index_config();
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
+            .resolve(
                 index_metadata.index_uri(),
-                Some(index_config.storage_credentials.clone()),
+                &index_config.storage_credentials,
             )
             .await?;
         let list_splits_request = ListSplitsRequest::try_from_index_uid(index_uid.clone())?;
@@ -562,10 +559,7 @@ pub async fn validate_storage_uri(
     index_config: &IndexConfig,
 ) -> anyhow::Result<()> {
     storage_resolver
-        .resolve_with_storage_credentials(
-            &index_config.index_uri,
-            Some(index_config.storage_credentials.clone()),
-        )
+        .resolve(&index_config.index_uri, &index_config.storage_credentials)
         .await?;
     Ok(())
 }
@@ -633,7 +627,10 @@ mod tests {
         let mut metastore = metastore_for_test();
         let storage_resolver = StorageResolver::for_test();
         let storage = storage_resolver
-            .resolve(&Uri::for_test("ram://indexes/test-index"))
+            .resolve(
+                &Uri::for_test("ram://indexes/test-index"),
+                &StorageCredentials::default(),
+            )
             .await
             .unwrap();
         let mut index_service = IndexService::new(metastore.clone(), storage_resolver);

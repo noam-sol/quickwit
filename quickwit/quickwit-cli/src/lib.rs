@@ -25,7 +25,7 @@ use quickwit_common::runtimes::RuntimesConfig;
 use quickwit_common::uri::Uri;
 use quickwit_config::service::QuickwitService;
 use quickwit_config::{
-    ConfigFormat, MetastoreConfigs, NodeConfig, SourceConfig, StorageConfigs,
+    ConfigFormat, MetastoreConfigs, NodeConfig, SourceConfig, StorageConfigs, StorageCredentials,
     DEFAULT_QW_CONFIG_PATH,
 };
 use quickwit_indexing::check_source_connectivity;
@@ -205,9 +205,13 @@ pub fn start_actor_runtimes(
 
 /// Loads a node config located at `config_uri` with the default storage configuration.
 async fn load_node_config(config_uri: &Uri) -> anyhow::Result<NodeConfig> {
-    let config_content = load_file(&StorageResolver::unconfigured(), config_uri)
-        .await
-        .context("failed to load node config")?;
+    let config_content = load_file(
+        &StorageResolver::unconfigured(),
+        config_uri,
+        &StorageCredentials::default(),
+    )
+    .await
+    .context("failed to load node config")?;
     let config_format = ConfigFormat::sniff_from_uri(config_uri)?;
     let config = NodeConfig::load(config_format, config_content.as_slice())
         .await
@@ -249,7 +253,12 @@ pub async fn run_index_checklist(
         // user, we check the metastore storage connectivity before the mestastore check
         // connectivity which will check the storage anyway.
         if !metastore_endpoint.protocol().is_database() {
-            let metastore_storage = storage_resolver.resolve(&metastore_endpoint).await?;
+            // The metastore storage configuration doesn't include extra storage credentials.
+            // That's okay because we use storage credentials for cross-account accessing,
+            // but the metastore storage is in the same account as quickwit.
+            let metastore_storage = storage_resolver
+                .resolve(&metastore_endpoint, &StorageCredentials::default())
+                .await?;
             checks.push((
                 "metastore storage",
                 metastore_storage.check_connectivity().await,
@@ -261,7 +270,12 @@ pub async fn run_index_checklist(
         .index_metadata(IndexMetadataRequest::for_index_id(index_id.to_string()))
         .await?
         .deserialize_index_metadata()?;
-    let index_storage = storage_resolver.resolve(index_metadata.index_uri()).await?;
+    let index_storage = storage_resolver
+        .resolve(
+            index_metadata.index_uri(),
+            &index_metadata.index_config().storage_credentials,
+        )
+        .await?;
     checks.push(("index storage", index_storage.check_connectivity().await));
 
     if let Some(source_config) = source_config_opt {

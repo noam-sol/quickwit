@@ -111,7 +111,7 @@ impl GarbageCollector {
             async move {
                 let index_uid = index.index_uid.clone();
                 let index_uri = index.index_uri();
-                let storage = match storage_resolver.resolve(index_uri).await {
+                let storage = match storage_resolver.resolve(index_uri, &index.index_config().storage_credentials).await {
                     Ok(storage) => storage,
                     Err(error) => {
                         error!(index=%index.index_id(), error=?error, "failed to resolve the index storage Uri");

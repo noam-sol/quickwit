@@ -107,15 +107,10 @@ impl StorageFactory for S3CompatibleObjectStorageFactory {
         StorageBackend::S3
     }
 
-    async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
-        self.resolve_with_storage_credentials(uri, StorageCredentials::default())
-            .await
-    }
-
-    async fn resolve_with_storage_credentials(
+    async fn resolve(
         &self,
         uri: &Uri,
-        storage_credentials: StorageCredentials,
+        storage_credentials: &StorageCredentials,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let role_arn_opt = storage_credentials
             .s3

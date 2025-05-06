@@ -164,10 +164,7 @@ impl DeleteTaskService {
         let index_uri = index_config.index_uri.clone();
         let index_storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
-                &index_uri,
-                Some(index_config.storage_credentials.clone()),
-            )
+            .resolve(&index_uri, &index_config.storage_credentials)
             .await?;
         let index_metadata_request =
             IndexMetadataRequest::for_index_id(index_config.index_id.to_string());

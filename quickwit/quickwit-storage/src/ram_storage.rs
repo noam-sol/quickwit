@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use quickwit_common::uri::{Protocol, Uri};
-use quickwit_config::StorageBackend;
+use quickwit_config::{StorageBackend, StorageCredentials};
 use tokio::io::{AsyncRead, AsyncWriteExt};
 use tokio::sync::RwLock;
 
@@ -199,7 +199,11 @@ impl StorageFactory for RamStorageFactory {
         StorageBackend::Ram
     }
 
-    async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+    async fn resolve(
+        &self,
+        uri: &Uri,
+        _: &StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         match uri.filepath() {
             Some(prefix) if uri.protocol() == Protocol::Ram => Ok(add_prefix_to_storage(
                 self.ram_storage.clone(),
@@ -231,16 +235,32 @@ mod tests {
     async fn test_ram_storage_factory() {
         let ram_storage_factory = RamStorageFactory::default();
         let ram_uri = Uri::for_test("s3:///foo");
-        let err = ram_storage_factory.resolve(&ram_uri).await.err().unwrap();
+        let err = ram_storage_factory
+            .resolve(&ram_uri, &StorageCredentials::default())
+            .await
+            .err()
+            .unwrap();
         assert!(matches!(err, StorageResolverError::InvalidUri { .. }));
 
         let data_uri = Uri::for_test("ram:///data");
-        let data_storage = ram_storage_factory.resolve(&data_uri).await.ok().unwrap();
+        let data_storage = ram_storage_factory
+            .resolve(&data_uri, &StorageCredentials::default())
+            .await
+            .ok()
+            .unwrap();
         let home_uri = Uri::for_test("ram:///home");
-        let home_storage = ram_storage_factory.resolve(&home_uri).await.ok().unwrap();
+        let home_storage = ram_storage_factory
+            .resolve(&home_uri, &StorageCredentials::default())
+            .await
+            .ok()
+            .unwrap();
         assert_ne!(data_storage.uri(), home_storage.uri());
 
-        let data_storage_two = ram_storage_factory.resolve(&data_uri).await.ok().unwrap();
+        let data_storage_two = ram_storage_factory
+            .resolve(&data_uri, &StorageCredentials::default())
+            .await
+            .ok()
+            .unwrap();
         assert_eq!(data_storage.uri(), data_storage_two.uri());
     }
 

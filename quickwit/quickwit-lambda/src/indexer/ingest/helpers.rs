@@ -28,7 +28,7 @@ use quickwit_config::merge_policy_config::MergePolicyConfig;
 use quickwit_config::service::QuickwitService;
 use quickwit_config::{
     load_index_config_from_user_config, ConfigFormat, IndexConfig, NodeConfig, SourceConfig,
-    SourceInputFormat, SourceParams, TransformConfig,
+    SourceInputFormat, SourceParams, StorageCredentials, TransformConfig,
 };
 use quickwit_indexing::actors::{IndexingService, MergePipeline, MergeSchedulerService};
 use quickwit_indexing::models::{DetachIndexingPipeline, DetachMergePipeline, SpawnPipeline};
@@ -108,7 +108,11 @@ pub(super) async fn load_index_config(
     default_index_root_uri: &Uri,
 ) -> anyhow::Result<IndexConfig> {
     let (dir, file) = dir_and_filename(Path::new(&*INDEX_CONFIG_URI))?;
-    let index_config_storage = resolver.resolve(&dir).await?;
+    // The index config is stored in a storage which should be in the same account as quickwit.
+    // As the StorageCredentials are mainly used for cross-account access, we use the default.
+    let index_config_storage = resolver
+        .resolve(&dir, &StorageCredentials::default())
+        .await?;
     let bytes = index_config_storage.get_all(file).await?;
     let mut index_config = load_index_config_from_user_config(
         ConfigFormat::Yaml,

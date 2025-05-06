@@ -19,7 +19,7 @@ use clap::{arg, ArgMatches, Command};
 use colored::Colorize;
 use itertools::Itertools;
 use quickwit_common::uri::Uri;
-use quickwit_config::{validate_identifier, ConfigFormat, SourceConfig};
+use quickwit_config::{validate_identifier, ConfigFormat, SourceConfig, StorageCredentials};
 use quickwit_metastore::checkpoint::SourceCheckpoint;
 use quickwit_proto::types::{IndexId, SourceId};
 use quickwit_storage::{load_file, StorageResolver};
@@ -369,7 +369,12 @@ async fn create_source_cli(args: CreateSourceArgs) -> anyhow::Result<()> {
     debug!(args=?args, "create-source");
     println!("❯ Creating source...");
     let storage_resolver = StorageResolver::unconfigured();
-    let source_config_content = load_file(&storage_resolver, &args.source_config_uri).await?;
+    let source_config_content = load_file(
+        &storage_resolver,
+        &args.source_config_uri,
+        &StorageCredentials::default(),
+    )
+    .await?;
     let source_config_str: &str = std::str::from_utf8(&source_config_content)
         .with_context(|| format!("source config is not utf-8: {}", args.source_config_uri))?;
     let config_format = ConfigFormat::sniff_from_uri(&args.source_config_uri)?;
@@ -386,7 +391,12 @@ async fn update_source_cli(args: UpdateSourceArgs) -> anyhow::Result<()> {
     debug!(args=?args, "update-source");
     println!("❯ Updating source...");
     let storage_resolver = StorageResolver::unconfigured();
-    let source_config_content = load_file(&storage_resolver, &args.source_config_uri).await?;
+    let source_config_content = load_file(
+        &storage_resolver,
+        &args.source_config_uri,
+        &StorageCredentials::default(),
+    )
+    .await?;
     let source_config_str: &str = std::str::from_utf8(&source_config_content)
         .with_context(|| format!("source config is not utf-8: {}", args.source_config_uri))?;
     let config_format = ConfigFormat::sniff_from_uri(&args.source_config_uri)?;

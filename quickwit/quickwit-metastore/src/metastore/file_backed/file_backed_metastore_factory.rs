@@ -20,7 +20,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use quickwit_common::uri::Uri;
-use quickwit_config::{MetastoreBackend, MetastoreConfig};
+use quickwit_config::{MetastoreBackend, MetastoreConfig, StorageCredentials};
 use quickwit_proto::metastore::{MetastoreError, MetastoreServiceClient};
 use quickwit_storage::{StorageResolver, StorageResolverError};
 use regex::Regex;
@@ -114,9 +114,13 @@ impl MetastoreFactory for FileBackedMetastoreFactory {
             return Ok(metastore);
         }
         debug!("metastore not found in cache");
+        // We currently don't support any other authentication mechanism than the default one as
+        // we use metastore with Postgresql, and if we will change it to be backed in a file, it will
+        // be a file stored in our aws account and storage credentials are being used mainly for 
+        // cross-account access.
         let storage = self
             .storage_resolver
-            .resolve(&uri)
+            .resolve(&uri, &StorageCredentials::default())
             .await
             .map_err(|err| match err {
                 StorageResolverError::InvalidConfig(message) => {

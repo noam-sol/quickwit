@@ -18,7 +18,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use quickwit_common::uri::Uri;
-use quickwit_config::{GoogleCloudStorageConfig, StorageBackend};
+use quickwit_config::{GoogleCloudStorageConfig, StorageBackend, StorageCredentials};
 use regex::Regex;
 use tracing::info;
 
@@ -44,7 +44,11 @@ impl StorageFactory for GoogleCloudStorageFactory {
         StorageBackend::Google
     }
 
-    async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+    async fn resolve(
+        &self,
+        uri: &Uri,
+        _: &StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let storage = from_uri(&self.storage_config, uri)?;
         Ok(Arc::new(DebouncedStorage::new(storage)))
     }

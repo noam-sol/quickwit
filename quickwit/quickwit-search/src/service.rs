@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use bytes::Bytes;
 use quickwit_common::uri::Uri;
-use quickwit_config::SearcherConfig;
+use quickwit_config::{SearcherConfig, StorageCredentials};
 use quickwit_doc_mapper::DocMapper;
 use quickwit_proto::metastore::MetastoreServiceClient;
 use quickwit_proto::search::{
@@ -231,10 +231,9 @@ impl SearchService for SearchServiceImpl {
         let index_uri = Uri::from_str(&fetch_docs_request.index_uri)?;
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
+            .resolve(
                 &index_uri,
-                quickwit_config::StorageCredentials::default(),
-            )
+                &StorageCredentials::default(),) // TODO: change this to be actual credentials
             .await?;
         let snippet_request_opt: Option<&SnippetRequest> =
             fetch_docs_request.snippet_request.as_ref();
@@ -275,10 +274,9 @@ impl SearchService for SearchServiceImpl {
         let index_uri = Uri::from_str(&leaf_stream_request.index_uri)?;
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
+            .resolve(
                 &index_uri,
-                quickwit_config::StorageCredentials::default(),
-            )
+                &StorageCredentials::default(),) // TODO: change this to be actual credentials
             .await?;
         let doc_mapper = deserialize_doc_mapper(&leaf_stream_request.doc_mapper)?;
         let leaf_receiver = leaf_search_stream(
@@ -316,10 +314,9 @@ impl SearchService for SearchServiceImpl {
         let index_uri = Uri::from_str(&leaf_search_request.index_uri)?;
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
+            .resolve(
                 &index_uri,
-                quickwit_config::StorageCredentials::default(),
-            )
+                &StorageCredentials::default(),) // TODO: change this to be actual credentials
             .await?;
         let split_ids = leaf_search_request.split_offsets;
 
@@ -376,10 +373,9 @@ impl SearchService for SearchServiceImpl {
         let index_uri = Uri::from_str(&list_fields_req.index_uri)?;
         let storage = self
             .storage_resolver
-            .resolve_with_storage_credentials(
+            .resolve(
                 &index_uri,
-                quickwit_config::StorageCredentials::default(),
-            )
+                &StorageCredentials::default(),) // TODO: change this to be actual credentials
             .await?;
         let index_id = list_fields_req.index_id;
         let split_ids = list_fields_req.split_offsets;

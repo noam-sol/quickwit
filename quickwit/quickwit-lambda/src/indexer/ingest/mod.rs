@@ -123,6 +123,7 @@ mod tests {
     use std::str::FromStr;
 
     use quickwit_common::new_coolid;
+    use quickwit_config::StorageCredentials;
     use quickwit_storage::StorageResolver;
 
     use super::*;
@@ -136,7 +137,10 @@ mod tests {
     ) -> Uri {
         let src_location = format!("s3://{}/{}", bucket, prefix);
         let storage_uri = Uri::from_str(&src_location).unwrap();
-        let storage = storage_resolver.resolve(&storage_uri).await.unwrap();
+        let storage = storage_resolver
+            .resolve(&storage_uri, &StorageCredentials::default())
+            .await
+            .unwrap();
         storage
             .put(&PathBuf::from(filename), Box::new(data))
             .await

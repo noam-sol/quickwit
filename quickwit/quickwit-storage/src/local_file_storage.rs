@@ -24,7 +24,7 @@ use futures::future::{BoxFuture, FutureExt};
 use futures::StreamExt;
 use quickwit_common::ignore_error_kind;
 use quickwit_common::uri::Uri;
-use quickwit_config::StorageBackend;
+use quickwit_config::{StorageBackend, StorageCredentials};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tracing::warn;
 
@@ -354,7 +354,11 @@ impl StorageFactory for LocalFileStorageFactory {
         StorageBackend::File
     }
 
-    async fn resolve(&self, uri: &Uri) -> Result<Arc<dyn Storage>, StorageResolverError> {
+    async fn resolve(
+        &self,
+        uri: &Uri,
+        _: &StorageCredentials,
+    ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let storage = LocalFileStorage::from_uri(uri)?;
         Ok(Arc::new(DebouncedStorage::new(storage)))
     }
@@ -402,18 +406,23 @@ mod tests {
         let index_uri =
             Uri::from_str(&format!("file://{}/foo/bar", temp_dir.path().display())).unwrap();
         let local_file_storage_factory = LocalFileStorageFactory;
-        let local_file_storage = local_file_storage_factory.resolve(&index_uri).await?;
+        let local_file_storage = local_file_storage_factory
+            .resolve(&index_uri, &StorageCredentials::default())
+            .await?;
         assert_eq!(local_file_storage.uri(), &index_uri);
 
         let err = local_file_storage_factory
-            .resolve(&Uri::for_test("s3://foo/bar"))
+            .resolve(
+                &Uri::for_test("s3://foo/bar"),
+                &StorageCredentials::default(),
+            )
             .await
             .err()
             .unwrap();
         assert!(matches!(err, StorageResolverError::InvalidUri { .. }));
 
         let err = local_file_storage_factory
-            .resolve(&Uri::for_test("s3://"))
+            .resolve(&Uri::for_test("s3://"), &StorageCredentials::default())
             .await
             .err()
             .unwrap();

@@ -1284,7 +1284,9 @@ async fn resolve_storage_and_leaf_search(
     doc_mapper: Arc<DocMapper>,
     aggregations_limits: AggregationLimitsGuard,
 ) -> crate::Result<LeafSearchResponse> {
-    let storage = storage_resolver.resolve(&index_uri).await?;
+    let storage = storage_resolver
+        .resolve(&index_uri, &StorageCredentials::default())
+        .await?; // TODO: change this to be actual credentials
     leaf_search(
         searcher_context.clone(),
         search_request.clone(),

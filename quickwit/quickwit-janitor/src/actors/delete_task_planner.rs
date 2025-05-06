@@ -25,10 +25,14 @@ use quickwit_common::uri::Uri;
 use quickwit_doc_mapper::tag_pruning::extract_tags_from_query;
 use quickwit_indexing::actors::{schedule_merge, MergeSchedulerService, MergeSplitDownloader};
 use quickwit_indexing::merge_policy::MergeOperation;
-use quickwit_metastore::{split_tag_filter, split_time_range_filter, ListSplitsResponseExt, Split};
+use quickwit_metastore::{
+    split_tag_filter, split_time_range_filter, IndexMetadataResponseExt, ListSplitsResponseExt,
+    Split,
+};
 use quickwit_proto::metastore::{
-    DeleteTask, LastDeleteOpstampRequest, ListDeleteTasksRequest, ListStaleSplitsRequest,
-    MetastoreResult, MetastoreService, MetastoreServiceClient, UpdateSplitsDeleteOpstampRequest,
+    DeleteTask, IndexMetadataRequest, LastDeleteOpstampRequest, ListDeleteTasksRequest,
+    ListStaleSplitsRequest, MetastoreResult, MetastoreService, MetastoreServiceClient,
+    UpdateSplitsDeleteOpstampRequest,
 };
 use quickwit_proto::search::SearchRequest;
 use quickwit_proto::types::IndexUid;
@@ -315,11 +319,19 @@ impl DeleteTaskPlanner {
             };
             let mut search_indexes_metas = HashMap::new();
             let index_uri = Uri::from_str(index_uri).context("invalid index URI")?;
+            let index_metadata_request =
+                IndexMetadataRequest::for_index_id(delete_query.index_uid().index_id.to_string());
+            let index_metadata = self
+                .metastore
+                .index_metadata(index_metadata_request)
+                .await?
+                .deserialize_index_metadata()?;
             search_indexes_metas.insert(
                 delete_query.index_uid().clone(),
                 IndexMetasForLeafSearch {
                     doc_mapper_str: doc_mapper_str.to_string(),
                     index_uri,
+                    storage_credentials: index_metadata.index_config.storage_credentials,
                 },
             );
             let leaf_search_request = jobs_to_leaf_request(

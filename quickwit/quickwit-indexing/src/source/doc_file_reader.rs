@@ -20,6 +20,7 @@ use async_compression::tokio::bufread::GzipDecoder;
 use bytes::Bytes;
 use quickwit_common::uri::Uri;
 use quickwit_common::Progress;
+use quickwit_config::StorageCredentials;
 use quickwit_metastore::checkpoint::PartitionId;
 use quickwit_proto::metastore::SourceType;
 use quickwit_proto::types::Position;
@@ -98,7 +99,7 @@ impl DocFileReader {
     ) -> anyhow::Result<Self> {
         let (dir_uri, file_name) = dir_and_filename(uri).context("dir_and_filename")?;
         let storage = storage_resolver
-            .resolve(&dir_uri)
+            .resolve(&dir_uri, &StorageCredentials::default())
             .await
             .context("storage resolve")?;
         let file_size = storage
