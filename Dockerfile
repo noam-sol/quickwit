@@ -13,7 +13,8 @@ FROM rust:bookworm AS deps-builder
 
 ENV CARGO_HOME=/usr/local/cargo
 COPY quickwit/Cargo.lock quickwit/Cargo.toml ./
-RUN cargo build --no-dev --release --features $CARGO_FEATURES || true
+RUN --mount=type=ssh \
+    cargo build --no-dev --release --features $CARGO_FEATURES || true
 
 FROM rust:bookworm AS bin-builder
 
@@ -51,7 +52,8 @@ COPY --from=deps-builder $CARGO_HOME $CARGO_HOME
 
 WORKDIR /quickwit
 
-RUN --mount=type=cache,target=$CARGO_TARGET_DIR \
+RUN --mount=type=ssh \
+    --mount=type=cache,target=$CARGO_TARGET_DIR \
     echo "Building workspace with feature(s) '$CARGO_FEATURES' and profile '$CARGO_PROFILE'" \
     && RUSTFLAGS="--cfg tokio_unstable" \
         cargo build \

@@ -58,6 +58,13 @@ jobs:
               - quickwit/**/*.proto
               - quickwit/rest-api-tests/**
               - .github/workflows/ci.yml
+      - name: Set up ssh key for tantivy fork
+        if: always() && steps.modified.outputs.rust_src == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.TANTIVY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
       # The following step is just meant to install rustup actually.
       # The next one installs the correct toolchain.
       - name: Install rustup
@@ -109,6 +116,13 @@ jobs:
               - quickwit/**/*.toml
               - quickwit/**/*.proto
               - .github/workflows/ci.yml
+      - name: Set up ssh key for tantivy fork
+        if: always() && steps.modified.outputs.rust_src == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.TANTIVY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Install Ubuntu packages
         if: always() && steps.modified.outputs.rust_src == 'true'
         run: sudo apt-get -y install protobuf-compiler python3 python3-pip
