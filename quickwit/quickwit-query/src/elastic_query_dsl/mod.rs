@@ -28,6 +28,7 @@ mod regex_query;
 mod string_or_struct;
 mod term_query;
 mod terms_query;
+mod wildcard_phrase_query;
 
 use bool_query::BoolQuery;
 pub use one_field_map::OneFieldMap;
@@ -36,6 +37,7 @@ pub(crate) use query_string_query::QueryStringQuery;
 use range_query::RangeQuery;
 pub(crate) use string_or_struct::StringOrStructForSerialization;
 use term_query::TermQuery;
+use wildcard_phrase_query::WildcardPhraseQuery;
 
 use crate::elastic_query_dsl::exists_query::ExistsQuery;
 use crate::elastic_query_dsl::match_bool_prefix::MatchBoolPrefixQuery;
@@ -81,6 +83,7 @@ pub(crate) enum ElasticQueryDslInner {
     MatchBoolPrefix(MatchBoolPrefixQuery),
     MatchPhrase(MatchPhraseQuery),
     MatchPhrasePrefix(MatchPhrasePrefixQuery),
+    WildcardPhrase(WildcardPhraseQuery),
     MultiMatch(MultiMatchQuery),
     Range(RangeQuery),
     Exists(ExistsQuery),
@@ -127,6 +130,9 @@ impl ConvertibleToQueryAst for ElasticQueryDslInner {
             Self::MatchPhrase(match_phrase_query) => match_phrase_query.convert_to_query_ast(),
             Self::MatchPhrasePrefix(match_phrase_prefix) => {
                 match_phrase_prefix.convert_to_query_ast()
+            }
+            Self::WildcardPhrase(wildcard_phrase_query) => {
+                wildcard_phrase_query.convert_to_query_ast()
             }
             Self::Range(range_query) => range_query.convert_to_query_ast(),
             Self::Match(match_query) => match_query.convert_to_query_ast(),
