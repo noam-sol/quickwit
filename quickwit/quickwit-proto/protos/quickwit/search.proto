@@ -145,6 +145,8 @@ message LeafListFieldsRequest {
   // Wildcard expressions are supported.
   repeated string fields = 4;
 
+  // Storage credentials for accessing the storage
+  StorageCredentials storage_credentials = 5;
 }
 
 message ListFieldsResponse {
@@ -322,6 +324,30 @@ message SplitSearchError {
   bool retryable_error = 3;
 }
 
+// S3 specific storage credentials
+message S3StorageCredentials {
+  // Optional role ARN to assume for S3 operations
+  optional string role_arn = 1;
+
+  // Optional external ID to use when assuming the role
+  optional string external_id = 2;
+}
+
+// Storage credentials for accessing storage services
+message StorageCredentials {
+  // S3 specific credentials
+  optional S3StorageCredentials s3 = 1;
+}
+
+// Combines an index URI with its storage credentials
+message IndexStorageAccess {
+  // Index URI that defines the location of the storage containing split files
+  string index_uri = 1;
+
+  // Storage credentials for accessing the storage
+  StorageCredentials storage_credentials = 2;
+}
+
 /// A LeafSearchRequest can span multiple indices.
 ///
 message LeafSearchRequest {
@@ -336,10 +362,11 @@ message LeafSearchRequest {
   // List of unique doc_mappers serialized as json.
   repeated string doc_mappers = 8;
 
-  // List of index uris
-  // Index URI. The index URI defines the location of the storage that contains the
-  // split files.
-  repeated string index_uris = 9;
+  // List of index URIs with their corresponding storage credentials
+  repeated IndexStorageAccess index_storage_accesses = 9;
+
+  // Deprecated: Use index_storage_accesses instead
+  repeated string index_uris = 10;
 }
 
 message ResourceStats {
@@ -355,12 +382,15 @@ message LeafRequestRef {
   // The ordinal of the doc_mapper in `LeafSearchRequest.doc_mappers`
   uint32 doc_mapper_ord = 1;
 
-  // The ordinal of the index uri in LeafSearchRequest.index_uris
-  uint32 index_uri_ord = 2;
+  // The ordinal of the index storage access in LeafSearchRequest.index_storage_accesses
+  uint32 index_storage_access_ord = 2;
 
   // Index split ids to apply the query on.
   // This ids are resolved from the index_uri defined in the search_request.
   repeated SplitIdAndFooterOffsets split_offsets = 3;
+
+  // Deprecated: Use index_storage_access_ord instead
+  uint32 index_uri_ord = 4;
 }
 
 message SplitIdAndFooterOffsets {
@@ -504,6 +534,9 @@ message FetchDocsRequest {
   // split files.
   string index_uri = 4;
 
+  // Storage credentials for accessing the storage
+  optional StorageCredentials storage_credentials = 8;
+
   optional SnippetRequest snippet_request = 7;
 
   // `DocMapper` as json serialized trait.
@@ -560,6 +593,9 @@ message LeafListTermsRequest {
   // Index URI. The index URI defines the location of the storage that contains the
   // split files.
   string index_uri = 3;
+
+  // Storage credentials for accessing the storage
+  optional StorageCredentials storage_credentials = 4;
 }
 
 message LeafListTermsResponse {
@@ -635,6 +671,8 @@ message LeafSearchStreamRequest {
   // split files.
   string index_uri = 6;
 
+  // Storage credentials for accessing the storage
+  optional StorageCredentials storage_credentials = 7;
 }
 
 

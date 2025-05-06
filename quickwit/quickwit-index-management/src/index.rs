@@ -21,7 +21,7 @@ use itertools::Itertools;
 use quickwit_common::fs::{empty_dir, get_cache_directory_path};
 use quickwit_common::pretty::PrettySample;
 use quickwit_common::rate_limited_error;
-use quickwit_config::{validate_identifier, IndexConfig, SourceConfig, StorageCredentials};
+use quickwit_config::{validate_identifier, IndexConfig, SourceConfig};
 use quickwit_indexing::check_source_connectivity;
 use quickwit_metastore::{
     AddSourceRequestExt, CreateIndexResponseExt, IndexMetadata, IndexMetadataResponseExt,
@@ -568,7 +568,9 @@ pub async fn validate_storage_uri(
 mod tests {
 
     use quickwit_common::uri::Uri;
-    use quickwit_config::{IndexConfig, CLI_SOURCE_ID, INGEST_API_SOURCE_ID, INGEST_V2_SOURCE_ID};
+    use quickwit_config::{
+        IndexConfig, StorageCredentials, CLI_SOURCE_ID, INGEST_API_SOURCE_ID, INGEST_V2_SOURCE_ID,
+    };
     use quickwit_metastore::{
         metastore_for_test, MetastoreServiceExt, SplitMetadata, StageSplitsRequestExt,
     };

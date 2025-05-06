@@ -43,10 +43,10 @@ use tantivy::schema::Field;
 use tantivy::{DateTime, Index, ReloadPolicy, Searcher, TantivyError, Term};
 use tokio::task::JoinError;
 use tracing::*;
-
+use quickwit_config::StorageCredentials;
 use crate::collector::{make_collector_for_split, make_merge_collector, IncrementalCollector};
 use crate::metrics::SEARCH_METRICS;
-use crate::root::is_metadata_count_request_with_ast;
+use crate::root::{is_metadata_count_request_with_ast, proto_storage_to_config_credentials};
 use crate::search_permit_provider::{compute_initial_memory_allocation, SearchPermit};
 use crate::service::{deserialize_doc_mapper, SearcherContext};
 use crate::{QuickwitAggregations, SearchError};
@@ -1208,17 +1208,25 @@ pub async fn multi_leaf_search(
     let mut leaf_request_tasks = Vec::new();
 
     for leaf_search_request_ref in leaf_search_request.leaf_requests.into_iter() {
-        let index_uri = quickwit_common::uri::Uri::from_str(
-            leaf_search_request
-                .index_uris
-                .get(leaf_search_request_ref.index_uri_ord as usize)
-                .ok_or_else(|| {
-                    SearchError::Internal(format!(
-                        "Received incorrect request, index_uri_ord out of bounds: {}",
-                        leaf_search_request_ref.index_uri_ord
-                    ))
-                })?,
-        )?;
+        let index_storage_access_ord = leaf_search_request_ref.index_storage_access_ord as usize;
+
+        let index_storage_access = leaf_search_request
+            .index_storage_accesses
+            .get(index_storage_access_ord)
+            .ok_or_else(|| {
+                SearchError::Internal(format!(
+                    "Received incorrect request, index_storage_access_ord out of bounds: {}",
+                    leaf_search_request_ref.index_storage_access_ord
+                ))
+            })?;
+
+        let index_uri = quickwit_common::uri::Uri::from_str(&index_storage_access.index_uri)?;
+
+        let storage_credentials = index_storage_access
+            .storage_credentials
+            .clone()
+            .unwrap_or_default();
+
         let doc_mapper = doc_mappers
             .get(leaf_search_request_ref.doc_mapper_ord as usize)
             .ok_or_else(|| {
@@ -1238,6 +1246,7 @@ pub async fn multi_leaf_search(
                 leaf_search_request_ref.split_offsets,
                 doc_mapper,
                 aggregation_limits.clone(),
+                proto_storage_to_config_credentials(&storage_credentials),
             )
             .in_current_span(),
         );
@@ -1283,10 +1292,11 @@ async fn resolve_storage_and_leaf_search(
     splits: Vec<SplitIdAndFooterOffsets>,
     doc_mapper: Arc<DocMapper>,
     aggregations_limits: AggregationLimitsGuard,
+    storage_credentials: StorageCredentials,
 ) -> crate::Result<LeafSearchResponse> {
     let storage = storage_resolver
-        .resolve(&index_uri, &StorageCredentials::default())
-        .await?; // TODO: change this to be actual credentials
+        .resolve(&index_uri, &storage_credentials)
+        .await?;
     leaf_search(
         searcher_context.clone(),
         search_request.clone(),

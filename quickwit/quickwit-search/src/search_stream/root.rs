@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use quickwit_common::uri::Uri;
-use quickwit_config::build_doc_mapper;
+use quickwit_config::{build_doc_mapper, StorageCredentials};
 use quickwit_doc_mapper::tag_pruning::extract_tags_from_query;
 use quickwit_metastore::IndexMetadataResponseExt;
 use quickwit_proto::metastore::{IndexMetadataRequest, MetastoreService, MetastoreServiceClient};
@@ -27,7 +27,7 @@ use tokio_stream::StreamMap;
 use tracing::*;
 
 use crate::cluster_client::ClusterClient;
-use crate::root::{refine_start_end_timestamp_from_ast, SearchJob};
+use crate::root::{convert_config_credentials_to_proto, refine_start_end_timestamp_from_ast, SearchJob};
 use crate::{list_relevant_splits, SearchError};
 
 /// Perform a distributed search stream.
@@ -99,6 +99,7 @@ pub async fn root_search_stream(
             &doc_mapper_str,
             index_uri.as_ref(),
             client_jobs,
+            &index_config.storage_credentials,
         );
         let leaf_stream = cluster_client
             .leaf_search_stream(leaf_request, client)
@@ -115,12 +116,16 @@ fn jobs_to_leaf_request(
     doc_mapper_str: &str,
     index_uri: &str, // TODO make Uri
     jobs: Vec<SearchJob>,
+    storage_credentials: &StorageCredentials,
 ) -> LeafSearchStreamRequest {
+    let proto_storage_credentials = Some(convert_config_credentials_to_proto(storage_credentials));
+
     LeafSearchStreamRequest {
         request: Some(request.clone()),
         split_offsets: jobs.into_iter().map(Into::into).collect(),
         doc_mapper: doc_mapper_str.to_string(),
         index_uri: index_uri.to_string(),
+        storage_credentials: proto_storage_credentials,
     }
 }
 

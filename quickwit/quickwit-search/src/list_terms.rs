@@ -20,7 +20,8 @@ use anyhow::Context;
 use futures::future::try_join_all;
 use itertools::{Either, Itertools};
 use quickwit_common::pretty::PrettySample;
-use quickwit_config::build_doc_mapper;
+use quickwit_common::uri::Uri;
+use quickwit_config::{build_doc_mapper, StorageCredentials};
 use quickwit_metastore::{ListSplitsRequestExt, MetastoreServiceStreamSplitsExt, SplitMetadata};
 use quickwit_proto::metastore::{ListSplitsRequest, MetastoreService, MetastoreServiceClient};
 use quickwit_proto::search::{
@@ -34,6 +35,7 @@ use tantivy::{ReloadPolicy, Term};
 use tracing::{debug, error, info, instrument};
 
 use crate::leaf::open_index_with_caches;
+use crate::root::convert_config_credentials_to_proto;
 use crate::search_job_placer::group_jobs_by_index_id;
 use crate::search_permit_provider::compute_initial_memory_allocation;
 use crate::{resolve_index_patterns, ClusterClient, SearchError, SearchJob, SearcherContext};
@@ -100,12 +102,16 @@ pub async fn root_list_terms(
     if let Some(end_ts) = list_terms_request.end_timestamp {
         query = query.with_time_range_end_lt(end_ts);
     }
-    let index_uid_to_index_uri: HashMap<IndexUid, String> = indexes_metadata
+    let index_uid_to_index_meta: HashMap<IndexUid, IndexMetasForLeafSearch> = indexes_metadata
         .iter()
         .map(|index_metadata| {
+            let index_metadata_for_leaf_search = IndexMetasForLeafSearch {
+                index_uri: index_metadata.index_uri().clone(),
+                storage_credentials: index_metadata.index_config.storage_credentials.clone(),
+            };
             (
                 index_metadata.index_uid.clone(),
-                index_metadata.index_uri().to_string(),
+                index_metadata_for_leaf_search,
             )
         })
         .collect();
@@ -126,7 +132,7 @@ pub async fn root_list_terms(
     // For each node, forward to a node with an affinity for that index id.
     for (client, client_jobs) in assigned_leaf_search_jobs {
         let leaf_requests =
-            jobs_to_leaf_requests(list_terms_request, &index_uid_to_index_uri, client_jobs)?;
+            jobs_to_leaf_requests(list_terms_request, &index_uid_to_index_meta, client_jobs)?;
         for leaf_request in leaf_requests {
             leaf_request_tasks.push(cluster_client.leaf_list_terms(leaf_request, client.clone()));
         }
@@ -177,26 +183,38 @@ pub async fn root_list_terms(
     })
 }
 
+/// Index metas needed for executing a leaf list terms request.
+#[derive(Clone, Debug)]
+pub struct IndexMetasForLeafSearch {
+    /// Index URI.
+    pub index_uri: Uri,
+    /// Storage credentials.
+    pub storage_credentials: StorageCredentials,
+}
+
 /// Builds a list of [`LeafListTermsRequest`], one per index, from a list of [`SearchJob`].
 pub fn jobs_to_leaf_requests(
     request: &ListTermsRequest,
-    index_uid_to_uri: &HashMap<IndexUid, String>,
+    index_uid_to_meta: &HashMap<IndexUid, IndexMetasForLeafSearch>,
     jobs: Vec<SearchJob>,
 ) -> crate::Result<Vec<LeafListTermsRequest>> {
     let search_request_for_leaf = request.clone();
     let mut leaf_search_requests = Vec::new();
     group_jobs_by_index_id(jobs, |job_group| {
         let index_uid = &job_group[0].index_uid;
-        let index_uri = index_uid_to_uri.get(index_uid).ok_or_else(|| {
+        let index_meta = index_uid_to_meta.get(index_uid).ok_or_else(|| {
             SearchError::Internal(format!(
                 "received list fields job for an unknown index {index_uid}. it should never happen"
             ))
         })?;
 
+        let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+
         let leaf_search_request = LeafListTermsRequest {
             list_terms_request: Some(search_request_for_leaf.clone()),
-            index_uri: index_uri.to_string(),
+            index_uri: index_meta.index_uri.to_string(),
             split_offsets: job_group.into_iter().map(|job| job.offsets).collect(),
+            storage_credentials: Some(proto_storage_credentials),
         };
         leaf_search_requests.push(leaf_search_request);
         Ok(())

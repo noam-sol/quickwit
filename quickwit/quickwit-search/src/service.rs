@@ -20,17 +20,10 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use bytes::Bytes;
 use quickwit_common::uri::Uri;
-use quickwit_config::{SearcherConfig, StorageCredentials};
+use quickwit_config::SearcherConfig;
 use quickwit_doc_mapper::DocMapper;
 use quickwit_proto::metastore::MetastoreServiceClient;
-use quickwit_proto::search::{
-    FetchDocsRequest, FetchDocsResponse, GetKvRequest, Hit, LeafListFieldsRequest,
-    LeafListTermsRequest, LeafListTermsResponse, LeafSearchRequest, LeafSearchResponse,
-    LeafSearchStreamRequest, LeafSearchStreamResponse, ListFieldsRequest, ListFieldsResponse,
-    ListTermsRequest, ListTermsResponse, PutKvRequest, ReportSplitsRequest, ReportSplitsResponse,
-    ScrollRequest, SearchPlanResponse, SearchRequest, SearchResponse, SearchStreamRequest,
-    SnippetRequest,
-};
+use quickwit_proto::search::{FetchDocsRequest, FetchDocsResponse, GetKvRequest, Hit, LeafListFieldsRequest, LeafListTermsRequest, LeafListTermsResponse, LeafSearchRequest, LeafSearchResponse, LeafSearchStreamRequest, LeafSearchStreamResponse, ListFieldsRequest, ListFieldsResponse, ListTermsRequest, ListTermsResponse, PutKvRequest, ReportSplitsRequest, ReportSplitsResponse, ScrollRequest, SearchPlanResponse, SearchRequest, SearchResponse, SearchStreamRequest, SnippetRequest};
 use quickwit_storage::{
     MemorySizedCache, QuickwitCache, SplitCache, StorageCache, StorageResolver,
 };
@@ -44,7 +37,7 @@ use crate::list_fields::{leaf_list_fields, root_list_fields};
 use crate::list_fields_cache::ListFieldsCache;
 use crate::list_terms::{leaf_list_terms, root_list_terms};
 use crate::metrics::SEARCH_METRICS;
-use crate::root::fetch_docs_phase;
+use crate::root::{fetch_docs_phase, get_storage_credentials_from_option};
 use crate::scroll_context::{MiniKV, ScrollContext, ScrollKeyAndStartOffset};
 use crate::search_permit_provider::SearchPermitProvider;
 use crate::search_stream::{leaf_search_stream, root_search_stream};
@@ -229,11 +222,13 @@ impl SearchService for SearchServiceImpl {
         fetch_docs_request: FetchDocsRequest,
     ) -> crate::Result<FetchDocsResponse> {
         let index_uri = Uri::from_str(&fetch_docs_request.index_uri)?;
+
+        let storage_credentials =
+            get_storage_credentials_from_option(fetch_docs_request.storage_credentials.as_ref());
+
         let storage = self
             .storage_resolver
-            .resolve(
-                &index_uri,
-                &StorageCredentials::default(),) // TODO: change this to be actual credentials
+            .resolve(&index_uri, &storage_credentials)
             .await?;
         let snippet_request_opt: Option<&SnippetRequest> =
             fetch_docs_request.snippet_request.as_ref();
@@ -272,11 +267,13 @@ impl SearchService for SearchServiceImpl {
             .request
             .ok_or_else(|| SearchError::Internal("no search request".to_string()))?;
         let index_uri = Uri::from_str(&leaf_stream_request.index_uri)?;
+
+        let storage_credentials =
+            get_storage_credentials_from_option(leaf_stream_request.storage_credentials.as_ref());
+
         let storage = self
             .storage_resolver
-            .resolve(
-                &index_uri,
-                &StorageCredentials::default(),) // TODO: change this to be actual credentials
+            .resolve(&index_uri, &storage_credentials)
             .await?;
         let doc_mapper = deserialize_doc_mapper(&leaf_stream_request.doc_mapper)?;
         let leaf_receiver = leaf_search_stream(
@@ -312,11 +309,13 @@ impl SearchService for SearchServiceImpl {
             .list_terms_request
             .ok_or_else(|| SearchError::Internal("no search request".to_string()))?;
         let index_uri = Uri::from_str(&leaf_search_request.index_uri)?;
+
+        let storage_credentials =
+            get_storage_credentials_from_option(leaf_search_request.storage_credentials.as_ref());
+
         let storage = self
             .storage_resolver
-            .resolve(
-                &index_uri,
-                &StorageCredentials::default(),) // TODO: change this to be actual credentials
+            .resolve(&index_uri, &storage_credentials)
             .await?;
         let split_ids = leaf_search_request.split_offsets;
 
@@ -371,11 +370,13 @@ impl SearchService for SearchServiceImpl {
         list_fields_req: LeafListFieldsRequest,
     ) -> crate::Result<ListFieldsResponse> {
         let index_uri = Uri::from_str(&list_fields_req.index_uri)?;
+
+        let storage_credentials =
+            get_storage_credentials_from_option(list_fields_req.storage_credentials.as_ref());
+
         let storage = self
             .storage_resolver
-            .resolve(
-                &index_uri,
-                &StorageCredentials::default(),) // TODO: change this to be actual credentials
+            .resolve(&index_uri, &storage_credentials)
             .await?;
         let index_id = list_fields_req.index_id;
         let split_ids = list_fields_req.split_offsets;

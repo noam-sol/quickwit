@@ -97,6 +97,9 @@ pub struct LeafListFieldsRequest {
     /// Wildcard expressions are supported.
     #[prost(string, repeated, tag = "4")]
     pub fields: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Storage credentials for accessing the storage
+    #[prost(message, optional, tag = "5")]
+    pub storage_credentials: ::core::option::Option<StorageCredentials>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -263,6 +266,39 @@ pub struct SplitSearchError {
     #[prost(bool, tag = "3")]
     pub retryable_error: bool,
 }
+/// S3 specific storage credentials
+#[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct S3StorageCredentials {
+    /// Optional role ARN to assume for S3 operations
+    #[prost(string, optional, tag = "1")]
+    pub role_arn: ::core::option::Option<::prost::alloc::string::String>,
+    /// Optional external ID to use when assuming the role
+    #[prost(string, optional, tag = "2")]
+    pub external_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+/// Storage credentials for accessing storage services
+#[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StorageCredentials {
+    /// S3 specific credentials
+    #[prost(message, optional, tag = "1")]
+    pub s3: ::core::option::Option<S3StorageCredentials>,
+}
+/// Combines an index URI with its storage credentials
+#[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IndexStorageAccess {
+    /// Index URI that defines the location of the storage containing split files
+    #[prost(string, tag = "1")]
+    pub index_uri: ::prost::alloc::string::String,
+    /// Storage credentials for accessing the storage
+    #[prost(message, optional, tag = "2")]
+    pub storage_credentials: ::core::option::Option<StorageCredentials>,
+}
 /// / A LeafSearchRequest can span multiple indices.
 /// /
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -280,10 +316,11 @@ pub struct LeafSearchRequest {
     /// List of unique doc_mappers serialized as json.
     #[prost(string, repeated, tag = "8")]
     pub doc_mappers: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// List of index uris
-    /// Index URI. The index URI defines the location of the storage that contains the
-    /// split files.
-    #[prost(string, repeated, tag = "9")]
+    /// List of index URIs with their corresponding storage credentials
+    #[prost(message, repeated, tag = "9")]
+    pub index_storage_accesses: ::prost::alloc::vec::Vec<IndexStorageAccess>,
+    /// Deprecated: Use index_storage_accesses instead
+    #[prost(string, repeated, tag = "10")]
     pub index_uris: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -309,13 +346,16 @@ pub struct LeafRequestRef {
     /// The ordinal of the doc_mapper in `LeafSearchRequest.doc_mappers`
     #[prost(uint32, tag = "1")]
     pub doc_mapper_ord: u32,
-    /// The ordinal of the index uri in LeafSearchRequest.index_uris
+    /// The ordinal of the index storage access in LeafSearchRequest.index_storage_accesses
     #[prost(uint32, tag = "2")]
-    pub index_uri_ord: u32,
+    pub index_storage_access_ord: u32,
     /// Index split ids to apply the query on.
     /// This ids are resolved from the index_uri defined in the search_request.
     #[prost(message, repeated, tag = "3")]
     pub split_offsets: ::prost::alloc::vec::Vec<SplitIdAndFooterOffsets>,
+    /// Deprecated: Use index_storage_access_ord instead
+    #[prost(uint32, tag = "4")]
+    pub index_uri_ord: u32,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -500,6 +540,9 @@ pub struct FetchDocsRequest {
     /// split files.
     #[prost(string, tag = "4")]
     pub index_uri: ::prost::alloc::string::String,
+    /// Storage credentials for accessing the storage
+    #[prost(message, optional, tag = "8")]
+    pub storage_credentials: ::core::option::Option<StorageCredentials>,
     #[prost(message, optional, tag = "7")]
     pub snippet_request: ::core::option::Option<SnippetRequest>,
     /// `DocMapper` as json serialized trait.
@@ -571,6 +614,9 @@ pub struct LeafListTermsRequest {
     /// split files.
     #[prost(string, tag = "3")]
     pub index_uri: ::prost::alloc::string::String,
+    /// Storage credentials for accessing the storage
+    #[prost(message, optional, tag = "4")]
+    pub storage_credentials: ::core::option::Option<StorageCredentials>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -636,6 +682,9 @@ pub struct LeafSearchStreamRequest {
     /// split files.
     #[prost(string, tag = "6")]
     pub index_uri: ::prost::alloc::string::String,
+    /// Storage credentials for accessing the storage
+    #[prost(message, optional, tag = "7")]
+    pub storage_credentials: ::core::option::Option<StorageCredentials>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]

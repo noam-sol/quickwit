@@ -23,7 +23,7 @@ use itertools::Itertools;
 use quickwit_common::pretty::PrettySample;
 use quickwit_common::shared_consts;
 use quickwit_common::uri::Uri;
-use quickwit_config::build_doc_mapper;
+use quickwit_config::{build_doc_mapper, StorageCredentials};
 use quickwit_doc_mapper::tag_pruning::extract_tags_from_query;
 use quickwit_doc_mapper::DYNAMIC_FIELD_NAME;
 use quickwit_metastore::{IndexMetadata, ListIndexesMetadataResponseExt, SplitMetadata};
@@ -31,9 +31,10 @@ use quickwit_proto::metastore::{
     ListIndexesMetadataRequest, MetastoreService, MetastoreServiceClient,
 };
 use quickwit_proto::search::{
-    FetchDocsRequest, FetchDocsResponse, Hit, LeafHit, LeafRequestRef, LeafSearchRequest,
-    LeafSearchResponse, PartialHit, SearchPlanResponse, SearchRequest, SearchResponse,
-    SnippetRequest, SortDatetimeFormat, SortField, SortValue, SplitIdAndFooterOffsets,
+    FetchDocsRequest, FetchDocsResponse, Hit, IndexStorageAccess, LeafHit, LeafRequestRef,
+    LeafSearchRequest, LeafSearchResponse, PartialHit, S3StorageCredentials, SearchPlanResponse,
+    SearchRequest, SearchResponse, SnippetRequest, SortDatetimeFormat, SortField, SortValue,
+    SplitIdAndFooterOffsets, StorageCredentials as ProtoStorageCredentials,
 };
 use quickwit_proto::types::{IndexUid, SplitId};
 use quickwit_query::query_ast::{
@@ -157,6 +158,8 @@ pub struct IndexMetasForLeafSearch {
     pub index_uri: Uri,
     /// Doc mapper json string.
     pub doc_mapper_str: String,
+    /// Storage credentials.
+    pub storage_credentials: StorageCredentials,
 }
 
 pub(crate) type IndexesMetasForLeafSearch = HashMap<IndexUid, IndexMetasForLeafSearch>;
@@ -256,6 +259,7 @@ fn validate_request_and_build_metadata(
             doc_mapper_str: serde_json::to_string(&doc_mapper).map_err(|err| {
                 SearchError::Internal(format!("failed to serialize doc mapper. cause: {err}"))
             })?,
+            storage_credentials: index_metadata.index_config.storage_credentials.clone(),
         };
         indexes_meta_for_leaf_search.insert(
             index_metadata.index_uid.clone(),
@@ -1676,7 +1680,8 @@ pub fn jobs_to_leaf_request(
         search_request: Some(search_request_for_leaf),
         leaf_requests: Vec::new(),
         doc_mappers: Vec::new(),
-        index_uris: Vec::new(),
+        index_storage_accesses: Vec::new(),
+        index_uris: Vec::new(), // Deprecated but kept for backward compatibility
     };
 
     let mut added_doc_mappers: HashMap<&str, u32> = HashMap::new();
@@ -1703,6 +1708,21 @@ pub fn jobs_to_leaf_request(
                     .push(search_index_meta.doc_mapper_str.to_string());
                 ord as u32
             });
+
+        // Create the IndexStorageAccess message
+        let index_storage_access = IndexStorageAccess {
+            index_uri: search_index_meta.index_uri.to_string(),
+            storage_credentials: Some(convert_config_credentials_to_proto(
+                &search_index_meta.storage_credentials,
+            )),
+        };
+
+        let index_storage_access_ord = leaf_search_request.index_storage_accesses.len() as u32;
+        leaf_search_request
+            .index_storage_accesses
+            .push(index_storage_access);
+
+        // Also populate the deprecated index_uris field for backward compatibility
         let index_uri_ord = leaf_search_request.index_uris.len() as u32;
         leaf_search_request
             .index_uris
@@ -1711,7 +1731,8 @@ pub fn jobs_to_leaf_request(
         let leaf_search_request_ref = LeafRequestRef {
             split_offsets: job_group.into_iter().map(|job| job.offsets).collect(),
             doc_mapper_ord,
-            index_uri_ord,
+            index_storage_access_ord,
+            index_uri_ord, // Deprecated but kept for backward compatibility
         };
         leaf_search_request
             .leaf_requests
@@ -1750,10 +1771,14 @@ pub fn jobs_to_fetch_docs_requests(
                 .into_iter()
                 .map(|fetch_doc_job| fetch_doc_job.into())
                 .collect();
+            // Convert config storage credentials to protobuf format
+            let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+
             let fetch_docs_req = FetchDocsRequest {
                 partial_hits,
                 split_offsets,
                 index_uri: index_meta.index_uri.to_string(),
+                storage_credentials: Some(proto_storage_credentials),
                 snippet_request: snippet_request_opt.clone(),
                 doc_mapper: index_meta.doc_mapper_str.clone(),
             };
@@ -1764,6 +1789,50 @@ pub fn jobs_to_fetch_docs_requests(
     )?;
     Ok(fetch_docs_requests)
 }
+
+/// Converts config storage credentials to protobuf storage credentials
+pub fn convert_config_credentials_to_proto(
+    credentials: &StorageCredentials,
+) -> ProtoStorageCredentials {
+    let s3_credentials = credentials.s3.as_ref().map(|s3_creds| S3StorageCredentials {
+        role_arn: s3_creds.role_arn.clone(),
+        external_id: s3_creds.external_id.clone(),
+    });
+
+    ProtoStorageCredentials {
+        s3: s3_credentials,
+    }
+}
+
+
+/// Helper function to get storage credentials from an Option<StorageCredentials> field.
+pub fn get_storage_credentials_from_option(
+    credentials_field: Option<&quickwit_proto::search::StorageCredentials>,
+) -> StorageCredentials {
+    match credentials_field {
+        Some(proto_creds) => proto_storage_to_config_credentials(proto_creds),
+        _ => StorageCredentials::default(),
+    }
+}
+
+/// Convert protobuf StorageCredentials to config StorageCredentials
+pub fn proto_storage_to_config_credentials(
+    proto_creds: &quickwit_proto::search::StorageCredentials
+) -> StorageCredentials {
+    if let Some(s3_proto) = proto_creds.s3.as_ref() {
+        if s3_proto.role_arn.is_some() || s3_proto.external_id.is_some() {
+            return StorageCredentials{
+                s3: Some(quickwit_config::S3StorageCredentials {
+                    role_arn: s3_proto.role_arn.clone(),
+                    external_id: s3_proto.external_id.clone(),
+                })
+            };
+        }
+    }
+
+    StorageCredentials::default()
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -1874,6 +1943,7 @@ mod tests {
             indexing_settings,
             search_settings,
             retention_policy_opt: Default::default(),
+            storage_credentials: Default::default(),
         })
     }
 
@@ -2046,6 +2116,7 @@ mod tests {
             indexing_settings,
             search_settings,
             retention_policy_opt: Default::default(),
+            storage_credentials: Default::default(),
         })
     }
 

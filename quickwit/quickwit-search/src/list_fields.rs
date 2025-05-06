@@ -23,6 +23,7 @@ use futures::future::try_join_all;
 use itertools::Itertools;
 use quickwit_common::shared_consts::SPLIT_FIELDS_FILE_NAME;
 use quickwit_common::uri::Uri;
+use quickwit_config::StorageCredentials;
 use quickwit_metastore::SplitMetadata;
 use quickwit_proto::metastore::MetastoreServiceClient;
 use quickwit_proto::search::{
@@ -33,6 +34,7 @@ use quickwit_proto::types::{IndexId, IndexUid};
 use quickwit_storage::Storage;
 
 use crate::leaf::open_split_bundle;
+use crate::root::convert_config_credentials_to_proto;
 use crate::search_job_placer::group_jobs_by_index_id;
 use crate::service::SearcherContext;
 use crate::{list_relevant_splits, resolve_index_patterns, ClusterClient, SearchError, SearchJob};
@@ -274,6 +276,8 @@ pub struct IndexMetasForLeafSearch {
     pub index_id: IndexId,
     /// Index URI.
     pub index_uri: Uri,
+    /// Storage credentials.
+    pub storage_credentials: StorageCredentials,
 }
 
 /// Performs a distributed list fields request.
@@ -297,6 +301,7 @@ pub async fn root_list_fields(
             let index_metadata_for_leaf_search = IndexMetasForLeafSearch {
                 index_uri: index_metadata.index_uri().clone(),
                 index_id: index_metadata.index_config.index_id.to_string(),
+                storage_credentials: index_metadata.index_config.storage_credentials.clone(),
             };
 
             (
@@ -360,11 +365,14 @@ pub fn jobs_to_leaf_requests(
             ))
         })?;
 
+        let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+
         let leaf_search_request = LeafListFieldsRequest {
             index_id: index_meta.index_id.to_string(),
             index_uri: index_meta.index_uri.to_string(),
             fields: search_request_for_leaf.fields.clone(),
             split_offsets: job_group.into_iter().map(|job| job.offsets).collect(),
+            storage_credentials: Some(proto_storage_credentials),
         };
         leaf_search_requests.push(leaf_search_request);
         Ok(())

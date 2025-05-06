@@ -375,10 +375,7 @@ mod tests {
     use std::collections::HashSet;
     use std::net::SocketAddr;
 
-    use quickwit_proto::search::{
-        LeafRequestRef, PartialHit, SearchRequest, SearchStreamRequest, SortValue,
-        SplitIdAndFooterOffsets, SplitSearchError,
-    };
+    use quickwit_proto::search::{IndexStorageAccess, LeafRequestRef, PartialHit, SearchRequest, SearchStreamRequest, SortValue, SplitIdAndFooterOffsets, SplitSearchError, StorageCredentials};
     use quickwit_query::query_ast::qast_json_helper;
 
     use super::*;
@@ -421,8 +418,13 @@ mod tests {
         LeafSearchRequest {
             search_request: Some(search_request),
             doc_mappers: vec!["doc_mapper".to_string()],
+            index_storage_accesses: vec![IndexStorageAccess {
+                index_uri: "uri".to_string(),
+                storage_credentials: Some(StorageCredentials::default()),
+            }],
             index_uris: vec!["uri".to_string()],
             leaf_requests: vec![LeafRequestRef {
+                index_storage_access_ord: 0,
                 index_uri_ord: 0,
                 doc_mapper_ord: 0,
                 split_offsets: vec![
@@ -480,6 +482,7 @@ mod tests {
                     num_docs: 0,
                 },
             ],
+            storage_credentials: Some(StorageCredentials::default()),
         }
     }
 
