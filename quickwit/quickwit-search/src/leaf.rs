@@ -352,7 +352,7 @@ async fn warm_up_term_ranges(
 
 async fn warm_up_automatons(
     searcher: &Searcher,
-    terms_grouped_by_field: &HashMap<Field, HashSet<Automaton>>,
+    terms_grouped_by_field: &HashMap<Field, HashMap<Automaton, bool>>,
 ) -> anyhow::Result<()> {
     let mut warm_up_futures = Vec::new();
     let cpu_intensive_executor = |task| async {
@@ -364,7 +364,7 @@ async fn warm_up_automatons(
     for (field, automatons) in terms_grouped_by_field {
         for segment_reader in searcher.segment_readers() {
             let inv_idx = segment_reader.inverted_index(*field)?;
-            for automaton in automatons {
+            for (automaton, positions_needed) in automatons {
                 let inv_idx_clone = inv_idx.clone();
                 warm_up_futures.push(async move {
                     match automaton {
@@ -377,6 +377,7 @@ async fn warm_up_automatons(
                                         automaton: regex.into(),
                                         prefix: path.clone().unwrap_or_default(),
                                     },
+                                    *positions_needed,
                                     cpu_intensive_executor,
                                 )
                                 .await

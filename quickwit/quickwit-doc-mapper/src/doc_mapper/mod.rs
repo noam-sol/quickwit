@@ -114,7 +114,7 @@ pub struct WarmupInfo {
     /// Term ranges to warmup, and whether their position is needed too.
     pub term_ranges_grouped_by_field: HashMap<Field, HashMap<TermRange, bool>>,
     /// Automatons to warmup
-    pub automatons_grouped_by_field: HashMap<Field, HashSet<Automaton>>,
+    pub automatons_grouped_by_field: HashMap<Field, HashMap<Automaton, bool>>,
 }
 
 impl WarmupInfo {
@@ -610,10 +610,10 @@ mod tests {
             .collect()
     }
 
-    fn automaton_hashset(elements: &[&str]) -> HashSet<Automaton> {
+    fn automaton_hashmap_no_pos(elements: &[&str]) -> HashMap<Automaton, bool> {
         elements
             .iter()
-            .map(|elem| Automaton::Regex(None, elem.to_string()))
+            .map(|elem| (Automaton::Regex(None, elem.to_string()), false))
             .collect()
     }
 
@@ -668,7 +668,7 @@ mod tests {
             ]),
             automatons_grouped_by_field: [(
                 Field::from_field_id(1),
-                automaton_hashset(&["my_reg.*ex"]),
+                automaton_hashmap_no_pos(&["my_reg.*ex"]),
             )]
             .into_iter()
             .collect(),
@@ -690,8 +690,14 @@ mod tests {
                 (2, "term2", true),
             ]),
             automatons_grouped_by_field: [
-                (Field::from_field_id(1), automaton_hashset(&["other-re.ex"])),
-                (Field::from_field_id(2), automaton_hashset(&["my_reg.*ex"])),
+                (
+                    Field::from_field_id(1),
+                    automaton_hashmap_no_pos(&["other-re.ex"]),
+                ),
+                (
+                    Field::from_field_id(2),
+                    automaton_hashmap_no_pos(&["my_reg.*ex"]),
+                ),
             ]
             .into_iter()
             .collect(),
@@ -750,7 +756,7 @@ mod tests {
                 .automatons_grouped_by_field
                 .get(&field)
                 .unwrap()
-                .contains(&automaton));
+                .contains_key(&automaton));
         }
 
         // merge is idempotent
@@ -776,9 +782,18 @@ mod tests {
                 (2, "term3", false),
             ]),
             automatons_grouped_by_field: [
-                (Field::from_field_id(1), automaton_hashset(&["other-re.ex"])),
-                (Field::from_field_id(1), automaton_hashset(&["other-re.ex"])),
-                (Field::from_field_id(2), automaton_hashset(&["my_reg.ex"])),
+                (
+                    Field::from_field_id(1),
+                    automaton_hashmap_no_pos(&["other-re.ex"]),
+                ),
+                (
+                    Field::from_field_id(1),
+                    automaton_hashmap_no_pos(&["other-re.ex"]),
+                ),
+                (
+                    Field::from_field_id(2),
+                    automaton_hashmap_no_pos(&["my_reg.ex"]),
+                ),
             ]
             .into_iter()
             .collect(),
@@ -793,8 +808,14 @@ mod tests {
                 (2, "term3", false),
             ]),
             automatons_grouped_by_field: [
-                (Field::from_field_id(1), automaton_hashset(&["other-re.ex"])),
-                (Field::from_field_id(2), automaton_hashset(&["my_reg.ex"])),
+                (
+                    Field::from_field_id(1),
+                    automaton_hashmap_no_pos(&["other-re.ex"]),
+                ),
+                (
+                    Field::from_field_id(2),
+                    automaton_hashmap_no_pos(&["my_reg.ex"]),
+                ),
             ]
             .into_iter()
             .collect(),

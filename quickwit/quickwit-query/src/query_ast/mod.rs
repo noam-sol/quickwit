@@ -30,7 +30,7 @@ mod term_set_query;
 mod user_input_query;
 pub(crate) mod utils;
 mod visitor;
-mod wildcard_query;
+pub mod wildcard_query;
 
 pub use bool_query::BoolQuery;
 pub use field_presence::FieldPresenceQuery;

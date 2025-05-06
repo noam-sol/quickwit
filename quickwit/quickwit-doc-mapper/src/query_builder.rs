@@ -16,6 +16,8 @@ use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::ops::Bound;
 
+use anyhow::Context;
+use quickwit_query::query_ast::wildcard_query::RegexTerms;
 use quickwit_query::query_ast::{
     FieldPresenceQuery, FullTextQuery, PhrasePrefixQuery, QueryAst, QueryAstVisitor, RangeQuery,
     RegexQuery, TermSetQuery, WildcardQuery,
@@ -23,7 +25,7 @@ use quickwit_query::query_ast::{
 use quickwit_query::tokenizers::TokenizerManager;
 use quickwit_query::{find_field_or_hit_dynamic, InvalidQuery};
 use tantivy::query::Query;
-use tantivy::schema::{Field, Schema};
+use tantivy::schema::{Field, Schema, Type};
 use tantivy::Term;
 use tracing::error;
 
@@ -207,7 +209,7 @@ struct ExtractPrefixTermRanges<'a> {
     schema: &'a Schema,
     tokenizer_manager: &'a TokenizerManager,
     term_ranges_to_warm_up: HashMap<Field, HashMap<TermRange, PositionNeeded>>,
-    automatons_to_warm_up: HashMap<Field, HashSet<Automaton>>,
+    automatons_to_warm_up: HashMap<Field, HashMap<Automaton, PositionNeeded>>,
 }
 
 impl<'a> ExtractPrefixTermRanges<'a> {
@@ -241,11 +243,18 @@ impl<'a> ExtractPrefixTermRanges<'a> {
             .or_default() |= position_needed;
     }
 
-    fn add_automaton(&mut self, field: Field, automaton: Automaton) {
-        self.automatons_to_warm_up
+    fn add_automaton(
+        &mut self,
+        field: Field,
+        automaton: Automaton,
+        positions_needed: PositionNeeded,
+    ) {
+        *self
+            .automatons_to_warm_up
             .entry(field)
             .or_default()
-            .insert(automaton);
+            .entry(automaton)
+            .or_default() |= positions_needed;
     }
 }
 
@@ -282,15 +291,38 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
     }
 
     fn visit_wildcard(&mut self, wildcard_query: &'a WildcardQuery) -> Result<(), Self::Err> {
-        let (field, path, regex) =
-            match wildcard_query.to_regex(self.schema, self.tokenizer_manager) {
+        let (field, regex_terms) =
+            match wildcard_query.to_regex_terms(self.schema, self.tokenizer_manager) {
                 Ok(res) => res,
                 /* the query will be nullified when casting to a tantivy ast */
                 Err(InvalidQuery::FieldDoesNotExist { .. }) => return Ok(()),
                 Err(e) => return Err(e),
             };
 
-        self.add_automaton(field, Automaton::Regex(path, regex));
+        match regex_terms {
+            RegexTerms::One(path, term_text) => {
+                self.add_automaton(field, Automaton::Regex(path, term_text), false);
+            }
+            RegexTerms::Many(terms) => {
+                for (_, term) in terms {
+                    let term_value = term.value();
+                    let term_text = match term_value.typ() {
+                        Type::Json => std::str::from_utf8(term.serialized_value_bytes())
+                            .context("json string term is not a valid string")?,
+                        Type::Str => term_value
+                            .as_str()
+                            .context("string term is not a valid string")?,
+                        _ => {
+                            return Err(InvalidQuery::SchemaError(
+                                "regex term is not a string or a json".to_string(),
+                            ));
+                        }
+                    };
+                    self.add_automaton(field, Automaton::Regex(None, term_text.to_string()), true);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -301,13 +333,13 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
             Err(InvalidQuery::FieldDoesNotExist { .. }) => return Ok(()),
             Err(e) => return Err(e),
         };
-        self.add_automaton(field, Automaton::Regex(path, regex));
+        self.add_automaton(field, Automaton::Regex(path, regex), false);
         Ok(())
     }
 }
 
 type TermRangeWarmupInfo = HashMap<Field, HashMap<TermRange, PositionNeeded>>;
-type AutomatonWarmupInfo = HashMap<Field, HashSet<Automaton>>;
+type AutomatonWarmupInfo = HashMap<Field, HashMap<Automaton, PositionNeeded>>;
 
 fn extract_prefix_term_ranges_and_automaton(
     query_ast: &QueryAst,

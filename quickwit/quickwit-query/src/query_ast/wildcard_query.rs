@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::borrow::Cow;
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use tantivy::query::RegexPhraseQuery;
 use tantivy::schema::{Field, FieldType, Schema as TantivySchema};
 use tantivy::Term;
 
@@ -32,6 +32,12 @@ pub struct WildcardQuery {
     pub value: String,
     /// Support missing fields
     pub lenient: bool,
+
+    #[serde(default)]
+    pub slop: u32,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokenizer: Option<String>,
 }
 
 impl From<WildcardQuery> for QueryAst {
@@ -76,42 +82,88 @@ enum SubQuery {
     QuestionMark,
 }
 
-fn sub_query_parts_to_regex(
+enum LastToken {
+    None,
+    Text,
+    Regex,
+}
+
+fn sub_query_parts_to_regex_tokens(
     sub_query_parts: Vec<SubQuery>,
     tokenizer_name: &str,
     tokenizer_manager: &TokenizerManager,
-) -> anyhow::Result<String> {
-    let mut normalizer = tokenizer_manager
-        .get_normalizer(tokenizer_name)
+) -> anyhow::Result<Vec<String>> {
+    let mut tokenizer = tokenizer_manager
+        .get_tokenizer(tokenizer_name)
         .with_context(|| format!("no tokenizer named `{tokenizer_name}` is registered"))?;
 
-    sub_query_parts
-        .into_iter()
-        .map(|part| match part {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut last = LastToken::None;
+
+    for part in sub_query_parts {
+        match part {
             SubQuery::Text(text) => {
-                let mut token_stream = normalizer.token_stream(&text);
-                let expected_token = token_stream
-                    .next()
-                    .context("normalizer generated no content")?
-                    .text
-                    .clone();
-                if let Some(_unexpected_token) = token_stream.next() {
-                    bail!("normalizer generated multiple tokens")
-                }
-                Ok(Cow::Owned(regex::escape(&expected_token)))
+                let mut token_stream = tokenizer.token_stream(&text);
+                token_stream.process(&mut |token| {
+                    if (!text.starts_with(&token.text) && matches!(last, LastToken::Regex))
+                        || matches!(last, LastToken::Text)
+                    {
+                        tokens.push(std::mem::take(&mut current));
+                    }
+
+                    last = if text.ends_with(&token.text) {
+                        LastToken::None
+                    } else {
+                        LastToken::Text
+                    };
+
+                    current.push_str(&regex::escape(&token.text));
+                });
             }
-            SubQuery::Wildcard => Ok(Cow::Borrowed(".*")),
-            SubQuery::QuestionMark => Ok(Cow::Borrowed(".")),
-        })
-        .collect::<Result<String, _>>()
+            SubQuery::Wildcard | SubQuery::QuestionMark => {
+                if !matches!(last, LastToken::None) {
+                    tokens.push(std::mem::take(&mut current));
+                }
+                last = LastToken::Regex;
+                current.push_str(if matches!(part, SubQuery::Wildcard) {
+                    ".*"
+                } else {
+                    "."
+                });
+            }
+        }
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    Ok(tokens)
+}
+
+#[derive(Debug)]
+pub enum RegexTerms {
+    One(Option<Vec<u8>>, String),
+    Many(Vec<(usize, Term)>),
 }
 
 impl WildcardQuery {
-    pub fn to_regex(
+    pub fn new(field: String, value: String, lenient: bool) -> Self {
+        Self {
+            field,
+            value,
+            lenient,
+            slop: 0,
+            tokenizer: None,
+        }
+    }
+
+    pub fn to_regex_terms(
         &self,
         schema: &TantivySchema,
         tokenizer_manager: &TokenizerManager,
-    ) -> Result<(Field, Option<Vec<u8>>, String), InvalidQuery> {
+    ) -> Result<(Field, RegexTerms), InvalidQuery> {
         let Some((field, field_entry, json_path)) = find_field_or_hit_dynamic(&self.field, schema)
         else {
             return Err(InvalidQuery::FieldDoesNotExist {
@@ -130,11 +182,29 @@ impl WildcardQuery {
                         field_entry.name()
                     ))
                 })?;
-                let tokenizer_name = text_field_indexing.tokenizer();
-                let regex =
-                    sub_query_parts_to_regex(sub_query_parts, tokenizer_name, tokenizer_manager)?;
+                let tokenizer_name: &str = self
+                    .tokenizer
+                    .as_deref()
+                    .unwrap_or(text_field_indexing.tokenizer());
+                let tokens = sub_query_parts_to_regex_tokens(
+                    sub_query_parts,
+                    tokenizer_name,
+                    tokenizer_manager,
+                )?;
 
-                Ok((field, None, regex))
+                let regex_terms = if tokens.len() == 1 {
+                    RegexTerms::One(None, tokens.into_iter().next().unwrap())
+                } else {
+                    RegexTerms::Many(
+                        tokens
+                            .into_iter()
+                            .enumerate()
+                            .map(|(offset, term)| (offset, Term::from_field_text(field, &term)))
+                            .collect(),
+                    )
+                };
+
+                Ok((field, regex_terms))
             }
             FieldType::JsonObject(json_options) => {
                 let text_field_indexing =
@@ -144,23 +214,49 @@ impl WildcardQuery {
                             field_entry.name()
                         ))
                     })?;
-                let tokenizer_name = text_field_indexing.tokenizer();
-                let regex =
-                    sub_query_parts_to_regex(sub_query_parts, tokenizer_name, tokenizer_manager)?;
+                let tokenizer_name: &str = self
+                    .tokenizer
+                    .as_deref()
+                    .unwrap_or(text_field_indexing.tokenizer());
+                let tokens = sub_query_parts_to_regex_tokens(
+                    sub_query_parts,
+                    tokenizer_name,
+                    tokenizer_manager,
+                )?;
 
-                let mut term_for_path = Term::from_field_json_path(
-                    field,
-                    json_path,
-                    json_options.is_expand_dots_enabled(),
-                );
-                term_for_path.append_type_and_str("");
+                let regex_terms = if tokens.len() == 1 {
+                    let mut term_for_path = Term::from_field_json_path(
+                        field,
+                        json_path,
+                        json_options.is_expand_dots_enabled(),
+                    );
+                    term_for_path.append_type_and_str("");
 
-                let value = term_for_path.value();
-                // We skip the 1st byte which is a marker to tell this is json. This isn't present
-                // in the dictionary
-                let byte_path_prefix = value.as_serialized()[1..].to_owned();
+                    let value = term_for_path.value();
+                    // We skip the 1st byte which is a marker to tell this is json. This isn't
+                    // present in the dictionary
+                    let byte_path_prefix = value.as_serialized()[1..].to_owned();
 
-                Ok((field, Some(byte_path_prefix), regex))
+                    RegexTerms::One(Some(byte_path_prefix), tokens.into_iter().next().unwrap())
+                } else {
+                    RegexTerms::Many(
+                        tokens
+                            .into_iter()
+                            .enumerate()
+                            .map(|(offset, token)| {
+                                let mut term = Term::from_field_json_path(
+                                    field,
+                                    json_path,
+                                    json_options.is_expand_dots_enabled(),
+                                );
+                                term.append_type_and_str(&token);
+                                (offset, term)
+                            })
+                            .collect(),
+                    )
+                };
+
+                Ok((field, regex_terms))
             }
             _ => Err(InvalidQuery::SchemaError(
                 "trying to run a Wildcard query on a non-text field".to_string(),
@@ -177,24 +273,39 @@ impl BuildTantivyAst for WildcardQuery {
         _search_fields: &[String],
         _with_validation: bool,
     ) -> Result<TantivyQueryAst, InvalidQuery> {
-        let (field, path, regex) = match self.to_regex(schema, tokenizer_manager) {
+        let (field, regex_terms) = match self.to_regex_terms(schema, tokenizer_manager) {
             Ok(res) => res,
             Err(InvalidQuery::FieldDoesNotExist { .. }) if self.lenient => {
                 return Ok(TantivyQueryAst::match_none())
             }
             Err(e) => return Err(e),
         };
-        let regex =
-            tantivy_fst::Regex::new(&regex).context("failed to parse regex built from wildcard")?;
-        let regex_automaton_with_path = JsonPathPrefix {
-            prefix: path.unwrap_or_default(),
-            automaton: regex.into(),
-        };
-        let regex_query_with_path = AutomatonQuery {
-            field,
-            automaton: Arc::new(regex_automaton_with_path),
-        };
-        Ok(regex_query_with_path.into())
+
+        match regex_terms {
+            RegexTerms::One(json_path, term_text) => {
+                let regex = tantivy_fst::Regex::new(&term_text)
+                    .context("failed to parse regex built from wildcard")?;
+                let regex_automaton_with_path = JsonPathPrefix {
+                    prefix: json_path.unwrap_or_default(),
+                    automaton: regex.into(),
+                };
+                let regex_query_with_path = AutomatonQuery {
+                    field,
+                    automaton: Arc::new(regex_automaton_with_path),
+                };
+                Ok(regex_query_with_path.into())
+            }
+            RegexTerms::Many(terms) => {
+                if terms.is_empty() {
+                    return Err(InvalidQuery::SchemaError(
+                        "wildcard term is empty".to_string(),
+                    ));
+                }
+                let regex_query_with_path =
+                    RegexPhraseQuery::new_with_term_offset_and_slop(field, terms, self.slop);
+                Ok(regex_query_with_path.into())
+            }
+        }
     }
 }
 
@@ -213,102 +324,105 @@ mod tests {
         schema_builder.build()
     }
 
+    fn assert_term_eq_str(terms: Vec<(usize, Term)>, expected: Vec<&str>) {
+        assert_eq!(terms.len(), expected.len());
+
+        for (i, ex) in expected.into_iter().enumerate() {
+            assert_eq!(terms[i].0, i);
+            assert_eq!(terms[i].1.value().as_str(), Some(ex));
+        }
+    }
+
+    fn assert_term_eq_json(terms: Vec<(usize, Term)>, expected: Vec<&str>) {
+        assert_eq!(terms.len(), expected.len());
+
+        for (i, ((offset, term), ex)) in terms.into_iter().zip(expected).enumerate() {
+            assert_eq!(offset, i);
+
+            let text = std::str::from_utf8(term.serialized_value_bytes())
+                .expect("failed to get json text");
+            assert!(text.ends_with(ex));
+        }
+    }
+
     #[test]
     fn test_wildcard_query_to_regex_on_text() {
-        let query = WildcardQuery {
-            field: "text_field".to_string(),
-            value: "MyString Wh1ch?a.nOrMal Tokenizer would*cut".to_string(),
-            lenient: false,
-        };
+        let query = WildcardQuery::new(
+            "text_field".to_string(),
+            "MyString Wh1ch?a.nOrMal Tokenizer would*cut".to_string(),
+            false,
+        );
 
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
-        for tokenizer in ["raw", "whitespace"] {
-            let mut schema_builder = TantivySchema::builder();
-            let text_options = TextOptions::default()
-                .set_indexing_options(TextFieldIndexing::default().set_tokenizer(tokenizer));
-            schema_builder.add_text_field("text_field", text_options);
-            let schema = schema_builder.build();
+        let mut schema_builder = TantivySchema::builder();
+        let text_options = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_tokenizer("whitespace"));
+        schema_builder.add_text_field("text_field", text_options);
+        let schema = schema_builder.build();
 
-            let (_field, path, regex) = query.to_regex(&schema, &tokenizer_manager).unwrap();
-            assert_eq!(regex, "MyString Wh1ch.a\\.nOrMal Tokenizer would.*cut");
-            assert!(path.is_none());
-        }
-
-        for tokenizer in [
-            "raw_lowercase",
-            "lowercase",
-            "default",
-            "en_stem",
-            "chinese_compatible",
-            "source_code_default",
-            "source_code_with_hex",
-        ] {
-            let mut schema_builder = TantivySchema::builder();
-            let text_options = TextOptions::default()
-                .set_indexing_options(TextFieldIndexing::default().set_tokenizer(tokenizer));
-            schema_builder.add_text_field("text_field", text_options);
-            let schema = schema_builder.build();
-
-            let (_field, path, regex) = query.to_regex(&schema, &tokenizer_manager).unwrap();
-            assert_eq!(regex, "mystring wh1ch.a\\.normal tokenizer would.*cut");
-            assert!(path.is_none());
-        }
+        let (_field, regex_terms) = query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
+        let RegexTerms::Many(terms) = regex_terms else {
+            panic!("expected mutiple terms");
+        };
+        assert_term_eq_str(
+            terms,
+            vec![
+                "MyString",
+                "Wh1ch.",
+                "a\\.nOrMal",
+                "Tokenizer",
+                "would.*",
+                "cut",
+            ],
+        );
     }
 
     #[test]
     fn test_wildcard_query_to_regex_on_json() {
-        let query = WildcardQuery {
+        let query = WildcardQuery::new(
             // this volontarily contains uppercase and regex-unsafe char to make sure we properly
             // keep the case, but sanitize special chars
-            field: "json_field.Inner.Fie*ld".to_string(),
-            value: "MyString Wh1ch?a.nOrMal Tokenizer would*cut".to_string(),
-            lenient: false,
-        };
+            "json_field.Inner.Fie*ld".to_string(),
+            "MyString Wh1ch?a.nOrMal Tokenizer would*cut".to_string(),
+            false,
+        );
 
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
-        for tokenizer in ["raw", "whitespace"] {
-            let mut schema_builder = TantivySchema::builder();
-            let text_options = TextOptions::default()
-                .set_indexing_options(TextFieldIndexing::default().set_tokenizer(tokenizer));
-            schema_builder.add_json_field("json_field", text_options);
-            let schema = schema_builder.build();
+        let mut schema_builder = TantivySchema::builder();
+        let text_options = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_tokenizer("whitespace"));
+        schema_builder.add_json_field("json_field", text_options);
+        let schema = schema_builder.build();
 
-            let (_field, path, regex) = query.to_regex(&schema, &tokenizer_manager).unwrap();
-            assert_eq!(regex, "MyString Wh1ch.a\\.nOrMal Tokenizer would.*cut");
-            assert_eq!(path.unwrap(), "Inner\u{1}Fie*ld\0s".as_bytes());
-        }
-
-        for tokenizer in [
-            "raw_lowercase",
-            "lowercase",
-            "default",
-            "en_stem",
-            "chinese_compatible",
-            "source_code_default",
-            "source_code_with_hex",
-        ] {
-            let mut schema_builder = TantivySchema::builder();
-            let text_options = TextOptions::default()
-                .set_indexing_options(TextFieldIndexing::default().set_tokenizer(tokenizer));
-            schema_builder.add_json_field("json_field", text_options);
-            let schema = schema_builder.build();
-
-            let (_field, path, regex) = query.to_regex(&schema, &tokenizer_manager).unwrap();
-            assert_eq!(regex, "mystring wh1ch.a\\.normal tokenizer would.*cut");
-            assert_eq!(path.unwrap(), "Inner\u{1}Fie*ld\0s".as_bytes());
-        }
+        let (_field, regex_terms) = query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
+        let RegexTerms::Many(terms) = regex_terms else {
+            panic!("expected mutiple terms");
+        };
+        assert_term_eq_json(
+            terms,
+            vec![
+                "MyString",
+                "Wh1ch.",
+                "a\\.nOrMal",
+                "Tokenizer",
+                "would.*",
+                "cut",
+            ],
+        );
     }
 
     #[test]
     fn test_extract_regex_wildcard_missing_field() {
-        let query = WildcardQuery {
-            field: "my_missing_field".to_string(),
-            value: "My query value*".to_string(),
-            lenient: false,
-        };
+        let query = WildcardQuery::new(
+            "my_missing_field".to_string(),
+            "My query value*".to_string(),
+            false,
+        );
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let schema = single_text_field_schema("my_field", "whitespace");
-        let err = query.to_regex(&schema, &tokenizer_manager).unwrap_err();
+        let err = query
+            .to_regex_terms(&schema, &tokenizer_manager)
+            .unwrap_err();
         let InvalidQuery::FieldDoesNotExist {
             full_path: missing_field_full_path,
         } = err
@@ -316,5 +430,22 @@ mod tests {
             panic!("unexpected error: {:?}", err);
         };
         assert_eq!(missing_field_full_path, "my_missing_field");
+    }
+
+    #[test]
+    fn test_parse_complex_wildcard() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("ha* t* *o ?it*");
+        let tokens = sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager)?;
+        assert_eq!(
+            tokens,
+            vec![
+                "ha.*".to_string(),
+                "t.*".to_string(),
+                ".*o".to_string(),
+                ".it.*".to_string()
+            ]
+        );
+        Ok(())
     }
 }

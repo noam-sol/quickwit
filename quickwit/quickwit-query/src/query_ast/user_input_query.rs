@@ -273,12 +273,7 @@ fn convert_user_input_literal(
                 }
                 .into()
             } else if wildcard {
-                query_ast::WildcardQuery {
-                    field: field_name,
-                    value: phrase.clone(),
-                    lenient,
-                }
-                .into()
+                query_ast::WildcardQuery::new(field_name, phrase.clone(), lenient).into()
             } else {
                 query_ast::FullTextQuery {
                     field: field_name,
