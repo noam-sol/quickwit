@@ -38,6 +38,9 @@ pub struct WildcardQuery {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokenizer: Option<String>,
+
+    #[serde(default)]
+    pub case_insensitive: bool,
 }
 
 impl From<WildcardQuery> for QueryAst {
@@ -92,6 +95,7 @@ fn sub_query_parts_to_regex_tokens(
     sub_query_parts: Vec<SubQuery>,
     tokenizer_name: &str,
     tokenizer_manager: &TokenizerManager,
+    case_insensitive: bool,
 ) -> anyhow::Result<Vec<String>> {
     let mut tokenizer = tokenizer_manager
         .get_tokenizer(tokenizer_name)
@@ -118,7 +122,26 @@ fn sub_query_parts_to_regex_tokens(
                         LastToken::Text
                     };
 
-                    current.push_str(&regex::escape(&token.text));
+                    let mut escaped = regex::escape(&token.text);
+
+                    if case_insensitive {
+                        let mut s = String::new();
+                        for chr in escaped.chars() {
+                            let lower = chr.to_ascii_lowercase();
+                            let upper = chr.to_ascii_uppercase();
+                            if lower == upper {
+                                s.push(chr);
+                            } else {
+                                s.push('[');
+                                s.push(lower);
+                                s.push(upper);
+                                s.push(']');
+                            }
+                        }
+                        escaped = s;
+                    }
+
+                    current.push_str(&escaped);
                 });
             }
             SubQuery::Wildcard | SubQuery::QuestionMark => {
@@ -156,6 +179,7 @@ impl WildcardQuery {
             lenient,
             slop: 0,
             tokenizer: None,
+            case_insensitive: false,
         }
     }
 
@@ -190,6 +214,7 @@ impl WildcardQuery {
                     sub_query_parts,
                     tokenizer_name,
                     tokenizer_manager,
+                    self.case_insensitive,
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
@@ -222,6 +247,7 @@ impl WildcardQuery {
                     sub_query_parts,
                     tokenizer_name,
                     tokenizer_manager,
+                    self.case_insensitive,
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
@@ -436,7 +462,8 @@ mod tests {
     fn test_parse_complex_wildcard() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
-        let tokens = sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager)?;
+        let tokens =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false)?;
         assert_eq!(
             tokens,
             vec![
@@ -444,6 +471,24 @@ mod tests {
                 "t.*".to_string(),
                 ".*o".to_string(),
                 ".it.*".to_string()
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_complex_wildcard_case_insensitive() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("ha* t* *o ?it*");
+        let tokens =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, true)?;
+        assert_eq!(
+            tokens,
+            vec![
+                "[hH][aA].*".to_string(),
+                "[tT].*".to_string(),
+                ".*[oO]".to_string(),
+                ".[iI][tT].*".to_string()
             ]
         );
         Ok(())
