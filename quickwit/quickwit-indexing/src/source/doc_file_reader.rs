@@ -96,10 +96,11 @@ impl DocFileReader {
         storage_resolver: &StorageResolver,
         uri: &Uri,
         offset: usize,
+        storage_credentials: &StorageCredentials,
     ) -> anyhow::Result<Self> {
         let (dir_uri, file_name) = dir_and_filename(uri).context("dir_and_filename")?;
         let storage = storage_resolver
-            .resolve(&dir_uri, &StorageCredentials::default())
+            .resolve(&dir_uri, storage_credentials)
             .await
             .context("storage resolve")?;
         let file_size = storage
@@ -169,6 +170,7 @@ impl ObjectUriBatchReader {
         partition_id: PartitionId,
         uri: &Uri,
         position: Position,
+        storage_credentials: &StorageCredentials,
     ) -> anyhow::Result<Self> {
         let current_offset = match position {
             Position::Beginning => 0,
@@ -184,7 +186,9 @@ impl ObjectUriBatchReader {
                 })
             }
         };
-        let reader = DocFileReader::from_uri(storage_resolver, uri, current_offset).await?;
+        let reader =
+            DocFileReader::from_uri(storage_resolver, uri, current_offset, storage_credentials)
+                .await?;
         Ok(ObjectUriBatchReader {
             partition_id,
             reader,
@@ -382,9 +386,10 @@ mod tests {
     async fn aux_test_full_read_record(file: impl AsRef<str>, expected_lines: usize) {
         let storage_resolver = StorageResolver::for_test();
         let uri = Uri::from_str(file.as_ref()).unwrap();
-        let mut doc_reader = DocFileReader::from_uri(&storage_resolver, &uri, 0)
-            .await
-            .unwrap();
+        let mut doc_reader =
+            DocFileReader::from_uri(&storage_resolver, &uri, 0, &StorageCredentials::default())
+                .await
+                .unwrap();
         let mut parsed_lines = 0;
         while doc_reader.next_record().await.unwrap().is_some() {
             parsed_lines += 1;
@@ -417,9 +422,10 @@ mod tests {
         let storage_resolver = StorageResolver::for_test();
         let uri = Uri::from_str(file.as_ref()).unwrap();
         // read the first part of the file
-        let mut first_part_reader = DocFileReader::from_uri(&storage_resolver, &uri, 0)
-            .await
-            .unwrap();
+        let mut first_part_reader =
+            DocFileReader::from_uri(&storage_resolver, &uri, 0, &StorageCredentials::default())
+                .await
+                .unwrap();
         let mut resume_offset = 0;
         let mut parsed_lines = 0;
         for _ in 0..stop_at_line {
@@ -433,10 +439,14 @@ mod tests {
             parsed_lines += 1;
         }
         // read the second part of the file
-        let mut second_part_reader =
-            DocFileReader::from_uri(&storage_resolver, &uri, resume_offset)
-                .await
-                .unwrap();
+        let mut second_part_reader = DocFileReader::from_uri(
+            &storage_resolver,
+            &uri,
+            resume_offset,
+            &StorageCredentials::default(),
+        )
+        .await
+        .unwrap();
         while let Some(rec) = second_part_reader.next_record().await.unwrap() {
             assert_eq!(Bytes::from(format!("{:0>7}\n", parsed_lines)), rec.doc);
             parsed_lines += 1;
@@ -475,10 +485,15 @@ mod tests {
         let storage_resolver = StorageResolver::for_test();
         let uri = Uri::from_str(file.as_ref()).unwrap();
         let partition = PartitionId::from("test");
-        let mut batch_reader =
-            ObjectUriBatchReader::try_new(&storage_resolver, partition.clone(), &uri, from)
-                .await
-                .unwrap();
+        let mut batch_reader = ObjectUriBatchReader::try_new(
+            &storage_resolver,
+            partition.clone(),
+            &uri,
+            from,
+            &StorageCredentials::default(),
+        )
+        .await
+        .unwrap();
 
         let mut parsed_lines = 0;
         let mut parsed_batches = 0;

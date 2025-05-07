@@ -362,6 +362,7 @@ impl IndexingService {
             queues_dir_path: self.queue_dir_path.clone(),
             source_storage_resolver: self.storage_resolver.clone(),
             params_fingerprint,
+            index_storage_credentials: index_config.storage_credentials.clone(),
 
             event_broker: self.event_broker.clone(),
         };

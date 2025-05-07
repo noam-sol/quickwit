@@ -19,7 +19,7 @@ use std::time::Duration;
 use itertools::Itertools;
 use quickwit_actors::{ActorExitStatus, Mailbox};
 use quickwit_common::rate_limited_error;
-use quickwit_config::{FileSourceMessageType, FileSourceSqs};
+use quickwit_config::{FileSourceMessageType, FileSourceSqs, StorageCredentials};
 use quickwit_metastore::checkpoint::SourceCheckpoint;
 use quickwit_proto::indexing::IndexingPipelineId;
 use quickwit_proto::metastore::SourceType;
@@ -75,6 +75,7 @@ pub struct QueueCoordinator {
     local_state: QueueLocalState,
     publish_token: String,
     visibility_settings: VisibilitySettings,
+    storage_credentials: StorageCredentials,
 }
 
 impl fmt::Debug for QueueCoordinator {
@@ -121,6 +122,7 @@ impl QueueCoordinator {
             visibility_settings: VisibilitySettings::from_commit_timeout(
                 source_runtime.indexing_setting.commit_timeout_secs,
             ),
+            storage_credentials: source_runtime.index_storage_credentials,
         }
     }
 
@@ -270,7 +272,10 @@ impl QueueCoordinator {
                 self.observable_state.num_messages_processed += 1;
             }
         } else if let Some(ready_message) = self.local_state.get_ready_for_read() {
-            match ready_message.start_processing(&self.storage_resolver).await {
+            match ready_message
+                .start_processing(&self.storage_resolver, &self.storage_credentials)
+                .await
+            {
                 Ok(new_in_progress) => {
                     self.local_state.set_currently_read(new_in_progress)?;
                 }
@@ -359,6 +364,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             publish_token: Ulid::new().to_string(),
             visibility_settings: VisibilitySettings::from_commit_timeout(5),
+            storage_credentials: StorageCredentials::default(),
         }
     }
 

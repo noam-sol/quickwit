@@ -20,6 +20,7 @@ use std::time::Instant;
 use anyhow::Context;
 use quickwit_common::rate_limited_warn;
 use quickwit_common::uri::Uri;
+use quickwit_config::StorageCredentials;
 use quickwit_metastore::checkpoint::PartitionId;
 use quickwit_proto::types::Position;
 use quickwit_storage::{OwnedBytes, StorageResolver};
@@ -174,6 +175,7 @@ impl ReadyMessage {
     pub async fn start_processing(
         self,
         storage_resolver: &StorageResolver,
+        storage_credentials: &StorageCredentials,
     ) -> anyhow::Result<Option<InProgressMessage>> {
         let partition_id = self.partition_id();
         match self.content.payload {
@@ -183,6 +185,7 @@ impl ReadyMessage {
                     partition_id.clone(),
                     &uri,
                     self.position,
+                    storage_credentials,
                 )
                 .await
                 .with_context(|| format!("creating object uri batch reader: {uri}"))?;

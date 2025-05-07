@@ -25,7 +25,7 @@ use quickwit_actors::{
 use quickwit_common::pubsub::EventBroker;
 use quickwit_common::temp_dir::TempDirectory;
 use quickwit_common::KillSwitch;
-use quickwit_config::{IndexingSettings, RetentionPolicy, SourceConfig};
+use quickwit_config::{IndexingSettings, RetentionPolicy, SourceConfig, StorageCredentials};
 use quickwit_doc_mapper::DocMapper;
 use quickwit_ingest::IngesterPool;
 use quickwit_proto::indexing::IndexingPipelineId;
@@ -439,6 +439,7 @@ impl IndexingPipeline {
             storage_resolver: self.params.source_storage_resolver.clone(),
             event_broker: self.params.event_broker.clone(),
             indexing_setting: self.params.indexing_settings.clone(),
+            index_storage_credentials: self.params.index_storage_credentials.clone(),
         };
         let source = ctx
             .protect_future(quickwit_supported_sources().load_source(source_runtime))
@@ -591,6 +592,7 @@ pub struct IndexingPipelineParams {
     pub ingester_pool: IngesterPool,
     pub queues_dir_path: PathBuf,
     pub params_fingerprint: u64,
+    pub index_storage_credentials: StorageCredentials,
 
     pub event_broker: EventBroker,
 }
@@ -722,6 +724,7 @@ mod tests {
             merge_planner_mailbox,
             event_broker: EventBroker::default(),
             params_fingerprint: 42u64,
+            index_storage_credentials: StorageCredentials::default(),
         };
         let pipeline = IndexingPipeline::new(pipeline_params);
         let (_pipeline_mailbox, pipeline_handle) = universe.spawn_builder().spawn(pipeline);
@@ -836,6 +839,7 @@ mod tests {
             merge_planner_mailbox,
             event_broker: Default::default(),
             params_fingerprint: 42u64,
+            index_storage_credentials: StorageCredentials::default(),
         };
         let pipeline = IndexingPipeline::new(pipeline_params);
         let (_pipeline_mailbox, pipeline_handler) = universe.spawn_builder().spawn(pipeline);
@@ -937,6 +941,7 @@ mod tests {
             merge_planner_mailbox: merge_planner_mailbox.clone(),
             event_broker: Default::default(),
             params_fingerprint: 42u64,
+            index_storage_credentials: StorageCredentials::default(),
         };
         let indexing_pipeline = IndexingPipeline::new(indexing_pipeline_params);
         let (_indexing_pipeline_mailbox, indexing_pipeline_handler) =
@@ -1064,6 +1069,7 @@ mod tests {
             cooperative_indexing_permits: None,
             merge_planner_mailbox,
             params_fingerprint: 42u64,
+            index_storage_credentials: StorageCredentials::default(),
             event_broker: Default::default(),
         };
         let pipeline = IndexingPipeline::new(pipeline_params);

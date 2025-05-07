@@ -166,6 +166,7 @@ impl TypedSourceFactory for FileSourceFactory {
                     partition_id,
                     &file_uri,
                     position,
+                    &source_runtime.index_storage_credentials,
                 )
                 .await?;
                 FileSourceState::Filepath {

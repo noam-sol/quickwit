@@ -160,6 +160,7 @@ pub struct SourceRuntime {
     pub storage_resolver: StorageResolver,
     pub event_broker: EventBroker,
     pub indexing_setting: IndexingSettings,
+    pub index_storage_credentials: StorageCredentials,
 }
 
 impl SourceRuntime {
@@ -624,6 +625,7 @@ mod tests {
                 storage_resolver: StorageResolver::for_test(),
                 event_broker: EventBroker::default(),
                 indexing_setting: IndexingSettings::default(),
+                index_storage_credentials: StorageCredentials::default(),
             }
         }
 

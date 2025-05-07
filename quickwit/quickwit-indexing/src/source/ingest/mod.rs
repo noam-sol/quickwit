@@ -671,7 +671,7 @@ mod tests {
     use quickwit_common::metrics::MEMORY_METRICS;
     use quickwit_common::stream_utils::InFlightValue;
     use quickwit_common::ServiceStream;
-    use quickwit_config::{IndexingSettings, SourceConfig, SourceParams};
+    use quickwit_config::{IndexingSettings, SourceConfig, SourceParams, StorageCredentials};
     use quickwit_proto::indexing::IndexingPipelineId;
     use quickwit_proto::ingest::ingester::{
         FetchMessage, IngesterServiceClient, MockIngesterService, TruncateShardsResponse,
@@ -943,6 +943,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::no_retries();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1147,6 +1148,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1312,6 +1314,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1378,6 +1381,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1612,6 +1616,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1767,6 +1772,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker,
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
@@ -1899,6 +1905,7 @@ mod tests {
             storage_resolver: StorageResolver::for_test(),
             event_broker: event_broker.clone(),
             indexing_setting: IndexingSettings::default(),
+            index_storage_credentials: StorageCredentials::default(),
         };
         let retry_params = RetryParams::for_test();
         let mut source = IngestSource::try_new(source_runtime, retry_params)
