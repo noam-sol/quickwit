@@ -11,7 +11,7 @@ on:
   # For security reasons (to make sure the list of allowed users is
   # trusted), make sure we run the workflow definition from the base
   # commit of the pull request.
-  pull_request_target:
+  # pull_request_target:
 
 # This is required for github.rest.issues.createComment.
 permissions:
