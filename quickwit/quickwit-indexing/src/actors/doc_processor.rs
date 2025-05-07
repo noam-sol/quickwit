@@ -528,7 +528,11 @@ impl DocProcessor {
                         "{error}",
                     );
                     self.counters.record_error(&error, num_bytes as u64);
-                    bail!("index id - {}, source_id - {}", self.counters.index_id, self.counters.source_id);
+                    bail!(
+                        "index id - {}, source_id - {}",
+                        self.counters.index_id,
+                        self.counters.source_id
+                    );
                 }
             }
         }
@@ -635,7 +639,11 @@ impl Handler<RawDocBatch> for DocProcessor {
             self.process_raw_doc(raw_doc, &mut processed_docs)
                 .map_err(|e| {
                     let partitions: Vec<_> = raw_doc_batch.checkpoint_delta.partitions().collect();
-                    ActorExitStatus::from(anyhow!("failed to process raw doc: {} (checkpoint delta: {:?}", e, partitions))
+                    ActorExitStatus::from(anyhow!(
+                        "failed to process raw doc: {} (checkpoint delta: {:?}",
+                        e,
+                        partitions
+                    ))
                 })?;
             ctx.record_progress();
         }
