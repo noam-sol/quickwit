@@ -45,6 +45,7 @@ async fn fetch_docs_to_map(
     splits: &[SplitIdAndFooterOffsets],
     doc_mapper: Arc<DocMapper>,
     snippet_request_opt: Option<&SnippetRequest>,
+    index_id: Option<&str>,
 ) -> anyhow::Result<HashMap<GlobalDocAddress, Document>> {
     let mut split_fetch_docs_futures = Vec::new();
 
@@ -72,6 +73,7 @@ async fn fetch_docs_to_map(
             split_and_offset,
             doc_mapper.clone(),
             snippet_request_opt,
+            index_id,
         ));
     }
 
@@ -112,6 +114,7 @@ pub async fn fetch_docs(
     splits: &[SplitIdAndFooterOffsets],
     doc_mapper: Arc<DocMapper>,
     snippet_request_opt: Option<&SnippetRequest>,
+    index_id: Option<&str>,
 ) -> anyhow::Result<FetchDocsResponse> {
     let global_doc_addrs: Vec<GlobalDocAddress> = partial_hits
         .iter()
@@ -125,6 +128,7 @@ pub async fn fetch_docs(
         splits,
         doc_mapper,
         snippet_request_opt,
+        index_id,
     )
     .await?;
 
@@ -165,6 +169,7 @@ async fn fetch_docs_in_split(
     split: &SplitIdAndFooterOffsets,
     doc_mapper: Arc<DocMapper>,
     snippet_request_opt: Option<&SnippetRequest>,
+    index_id: Option<&str>,
 ) -> anyhow::Result<Vec<(GlobalDocAddress, Document)>> {
     global_doc_addrs.sort_by_key(|doc| doc.doc_addr);
     // Opens the index without the ephemeral unbounded cache, this cache is indeed not useful
@@ -175,6 +180,7 @@ async fn fetch_docs_in_split(
         split,
         Some(doc_mapper.tokenizer_manager()),
         None,
+        index_id,
     )
     .await
     .context("open-index-for-split")?;

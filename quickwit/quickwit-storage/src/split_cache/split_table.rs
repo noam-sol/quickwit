@@ -245,7 +245,7 @@ impl SplitTable {
     /// If the file is already on the disk cache, return `Some(num_bytes)`.
     /// If the file is not in cache, return `None`, and register the file in the candidate for
     /// download list.
-    pub fn touch(&mut self, split_ulid: Ulid, storage_uri: &Uri) -> Option<u64> {
+    pub fn touch(&mut self, split_ulid: Ulid, storage_uri: &Uri, index_id: String) -> Option<u64> {
         let timestamp = compute_timestamp(self.origin_time);
         let status = self.mutate_split(split_ulid, |old_split_info| {
             if let Some(mut split_info) = old_split_info {
@@ -261,6 +261,7 @@ impl SplitTable {
                         storage_uri: storage_uri.clone(),
                         split_ulid,
                         living_token: Arc::new(()),
+                        index_id,
                     }),
                 }
             }
@@ -306,7 +307,7 @@ impl SplitTable {
         });
     }
 
-    pub(crate) fn report(&mut self, split_ulid: Ulid, storage_uri: Uri) {
+    pub(crate) fn report(&mut self, split_ulid: Ulid, storage_uri: Uri, index_id: String) {
         let origin_time = self.origin_time;
         self.mutate_split(split_ulid, move |split_info_opt| {
             if let Some(split_info) = split_info_opt {
@@ -322,6 +323,7 @@ impl SplitTable {
                     storage_uri,
                     split_ulid,
                     living_token: Arc::new(()),
+                    index_id: index_id.clone(),
                 }),
             }
         });
@@ -443,6 +445,7 @@ pub(crate) struct CandidateSplit {
     pub storage_uri: Uri,
     pub split_ulid: Ulid,
     pub living_token: Arc<()>,
+    pub index_id: String,
 }
 
 pub(crate) struct DownloadOpportunity {
@@ -489,8 +492,16 @@ mod tests {
         let ulids = sorted_split_ulids(2);
         let ulid1 = ulids[0];
         let ulid2 = ulids[1];
-        split_table.report(ulid1, Uri::for_test(TEST_STORAGE_URI));
-        split_table.report(ulid2, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            ulid1,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
+        split_table.report(
+            ulid2,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
         let candidate = split_table.best_candidate().unwrap();
         assert_eq!(candidate.split_ulid, ulid2);
     }
@@ -509,9 +520,21 @@ mod tests {
         let ulids = sorted_split_ulids(2);
         let ulid1 = ulids[0];
         let ulid2 = ulids[1];
-        split_table.report(ulid1, Uri::for_test(TEST_STORAGE_URI));
-        split_table.report(ulid2, Uri::for_test(TEST_STORAGE_URI));
-        let num_bytes_opt = split_table.touch(ulid1, &Uri::for_test("s3://test1/"));
+        split_table.report(
+            ulid1,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
+        split_table.report(
+            ulid2,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
+        let num_bytes_opt = split_table.touch(
+            ulid1,
+            &Uri::for_test("s3://test1/"),
+            "test-index".to_string(),
+        );
         assert!(num_bytes_opt.is_none());
         let candidate = split_table.best_candidate().unwrap();
         assert_eq!(candidate.split_ulid, ulid1);
@@ -529,7 +552,11 @@ mod tests {
             Default::default(),
         );
         let ulid1 = Ulid::new();
-        split_table.report(ulid1, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            ulid1,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
         assert_eq!(split_table.num_bytes(), 0);
         let download = split_table.start_download(ulid1);
         assert!(download.is_some());
@@ -537,11 +564,19 @@ mod tests {
         split_table.register_as_downloaded(ulid1, 10_000_000);
         assert_eq!(split_table.num_bytes(), 10_000_000);
         assert_eq!(
-            split_table.touch(ulid1, &Uri::for_test(TEST_STORAGE_URI)),
+            split_table.touch(
+                ulid1,
+                &Uri::for_test(TEST_STORAGE_URI),
+                "test-index".to_string()
+            ),
             Some(10_000_000)
         );
         let ulid2 = Ulid::new();
-        split_table.report(ulid2, Uri::for_test("s3://test`/"));
+        split_table.report(
+            ulid2,
+            Uri::for_test("s3://test`/"),
+            "test-index".to_string(),
+        );
         let download = split_table.start_download(ulid2);
         assert!(download.is_some());
         assert!(split_table.start_download(ulid2).is_none());
@@ -572,11 +607,19 @@ mod tests {
             (split_ulids[5], 300_000),
         ];
         for (split_ulid, num_bytes) in splits {
-            split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+            split_table.report(
+                split_ulid,
+                Uri::for_test(TEST_STORAGE_URI),
+                "test-index".to_string(),
+            );
             split_table.register_as_downloaded(split_ulid, num_bytes);
         }
         let new_ulid = Ulid::new();
-        split_table.report(new_ulid, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            new_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
         let DownloadOpportunity {
             splits_to_delete,
             split_to_download,
@@ -610,11 +653,19 @@ mod tests {
             (split_ulids[5], 300_000),
         ];
         for (split_ulid, num_bytes) in splits {
-            split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+            split_table.report(
+                split_ulid,
+                Uri::for_test(TEST_STORAGE_URI),
+                "test-index".to_string(),
+            );
             split_table.register_as_downloaded(split_ulid, num_bytes);
         }
         let new_ulid = Ulid::new();
-        split_table.report(new_ulid, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            new_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
         let DownloadOpportunity {
             splits_to_delete,
             split_to_download,
@@ -635,10 +686,18 @@ mod tests {
             Default::default(),
         );
         let split_ulid = Ulid::new();
-        split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            split_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
         let candidate = split_table.start_download(split_ulid).unwrap();
         // This report should be cancelled as we have a download currently running.
-        split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            split_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
 
         assert!(split_table.start_download(split_ulid).is_none());
         std::mem::drop(candidate);
@@ -647,7 +706,11 @@ mod tests {
         assert!(split_table.start_download(split_ulid).is_none());
 
         // This report should be considered as our candidate (and its alive token has been dropped)
-        split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+        split_table.report(
+            split_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            "test-index".to_string(),
+        );
 
         let candidate2 = split_table.start_download(split_ulid).unwrap();
         assert_eq!(candidate2.split_ulid, split_ulid);
@@ -666,7 +729,11 @@ mod tests {
         );
         for i in 1..2_000 {
             let split_ulid = Ulid::new();
-            split_table.report(split_ulid, Uri::for_test(TEST_STORAGE_URI));
+            split_table.report(
+                split_ulid,
+                Uri::for_test(TEST_STORAGE_URI),
+                "test-index".to_string(),
+            );
             assert_eq!(
                 split_table.candidate_splits.len(),
                 i.min(super::MAX_NUM_CANDIDATES)
@@ -692,6 +759,7 @@ mod tests {
                 storage_uri: Uri::for_test(TEST_STORAGE_URI),
                 split_ulid,
                 living_token: Arc::new(()),
+                index_id: "test-index".to_string(),
             };
             let split_info = SplitInfo {
                 split_key: SplitKey {
@@ -706,5 +774,43 @@ mod tests {
             split_table.candidate_splits.len(),
             super::MAX_NUM_CANDIDATES
         );
+    }
+
+    #[test]
+    fn test_report_with_index_id() {
+        let mut split_table = SplitTable::with_limits_and_existing_splits(
+            SplitCacheLimits {
+                max_num_bytes: ByteSize::mb(10),
+                max_num_splits: NonZeroU32::new(5).unwrap(),
+                num_concurrent_downloads: NonZeroU32::new(1).unwrap(),
+                max_file_descriptors: NonZeroU32::new(100).unwrap(),
+            },
+            Default::default(),
+        );
+
+        let split_ulid = Ulid::new();
+        let index_id = "test-index-id".to_string();
+
+        // Report with index_id
+        split_table.report(
+            split_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            index_id.clone(),
+        );
+
+        // Check if the index_id is properly stored in the split info
+        let candidate = split_table.start_download(split_ulid).unwrap();
+        assert_eq!(candidate.split_ulid, split_ulid);
+        assert_eq!(candidate.index_id, index_id);
+
+        // We've removed the split when we started downloading it, so we need to report it again
+        split_table.report(
+            split_ulid,
+            Uri::for_test(TEST_STORAGE_URI),
+            index_id.clone(),
+        );
+
+        // We can access the split_to_status directly in tests
+        // No need to check split_info.index_id as we've removed it
     }
 }

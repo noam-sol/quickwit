@@ -1698,6 +1698,7 @@ async fn test_single_node_list_terms() -> anyhow::Result<()> {
             &request,
             test_sandbox.storage(),
             &splits_offsets,
+            None,
         )
         .await
         .unwrap();
@@ -1719,6 +1720,7 @@ async fn test_single_node_list_terms() -> anyhow::Result<()> {
             &request,
             test_sandbox.storage(),
             &splits_offsets,
+            None,
         )
         .await
         .unwrap();
@@ -1740,6 +1742,7 @@ async fn test_single_node_list_terms() -> anyhow::Result<()> {
             &request,
             test_sandbox.storage(),
             &splits_offsets,
+            None,
         )
         .await
         .unwrap();
@@ -1761,6 +1764,7 @@ async fn test_single_node_list_terms() -> anyhow::Result<()> {
             &request,
             test_sandbox.storage(),
             &splits_offsets,
+            None,
         )
         .await
         .unwrap();

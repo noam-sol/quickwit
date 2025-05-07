@@ -23,11 +23,12 @@ use anyhow::Context;
 use bytesize::ByteSize;
 use futures::future::try_join_all;
 use quickwit_common::pretty::PrettySample;
+use quickwit_config::StorageCredentials;
 use quickwit_directories::{CachingDirectory, HotDirectory, StorageDirectory};
 use quickwit_doc_mapper::{Automaton, DocMapper, FastFieldWarmupInfo, TermRange, WarmupInfo};
 use quickwit_proto::search::{
-    CountHits, LeafSearchRequest, LeafSearchResponse, PartialHit, ResourceStats, SearchRequest,
-    SortOrder, SortValue, SplitIdAndFooterOffsets, SplitSearchError,
+    CountHits, LeafSearchRequest, LeafSearchResponse, PartialHit, ReportSplit, ResourceStats,
+    SearchRequest, SortOrder, SortValue, SplitIdAndFooterOffsets, SplitSearchError,
 };
 use quickwit_query::query_ast::{BoolQuery, QueryAst, QueryAstTransformer, RangeQuery, TermQuery};
 use quickwit_query::tokenizers::TokenizerManager;
@@ -43,7 +44,7 @@ use tantivy::schema::Field;
 use tantivy::{DateTime, Index, ReloadPolicy, Searcher, TantivyError, Term};
 use tokio::task::JoinError;
 use tracing::*;
-use quickwit_config::StorageCredentials;
+
 use crate::collector::{make_collector_for_split, make_merge_collector, IncrementalCollector};
 use crate::metrics::SEARCH_METRICS;
 use crate::root::{is_metadata_count_request_with_ast, proto_storage_to_config_credentials};
@@ -94,6 +95,7 @@ pub(crate) async fn open_split_bundle(
     searcher_context: &SearcherContext,
     index_storage: Arc<dyn Storage>,
     split_and_footer_offsets: &SplitIdAndFooterOffsets,
+    index_id: Option<&str>,
 ) -> anyhow::Result<(FileSlice, BundleStorage)> {
     let split_file = PathBuf::from(format!("{}.split", split_and_footer_offsets.split_id));
     let footer_data = get_split_footer_from_cache_or_fetch(
@@ -107,6 +109,20 @@ pub(crate) async fn open_split_bundle(
     // This is before the bundle storage: at this point, this storage is reading `.split` files.
     let index_storage_with_split_cache =
         if let Some(split_cache) = searcher_context.split_cache_opt.as_ref() {
+            if let Some(index_id) = index_id {
+                let report_split = ReportSplit {
+                    split_id: split_and_footer_offsets.split_id.to_string(),
+                    storage_uri: index_storage.uri().to_string(),
+                    index_id: index_id.to_string(),
+                };
+                split_cache.report_splits(vec![report_split]);
+
+                debug!(
+                    split_id = %&split_and_footer_offsets.split_id,
+                    index_id = %index_id,
+                    "Reported split to cache with index_id before access"
+                );
+            }
             SplitCache::wrap_storage(split_cache.clone(), index_storage.clone())
         } else {
             index_storage.clone()
@@ -151,6 +167,7 @@ pub(crate) async fn open_index_with_caches(
     split_and_footer_offsets: &SplitIdAndFooterOffsets,
     tokenizer_manager: Option<&TokenizerManager>,
     ephemeral_unbounded_cache: Option<ByteRangeCache>,
+    index_id: Option<&str>,
 ) -> anyhow::Result<(Index, HotDirectory)> {
     let index_storage_with_retry_on_timeout =
         configure_storage_retries(searcher_context, index_storage);
@@ -159,6 +176,7 @@ pub(crate) async fn open_index_with_caches(
         searcher_context,
         index_storage_with_retry_on_timeout,
         split_and_footer_offsets,
+        index_id,
     )
     .await?;
 
@@ -469,6 +487,9 @@ async fn leaf_search_single_split(
     }
 
     let split_id = split.split_id.to_string();
+
+    let index_id = split.index_id.as_deref();
+
     let byte_range_cache =
         ByteRangeCache::with_infinite_capacity(&quickwit_storage::STORAGE_METRICS.shortlived_cache);
     let (index, hot_directory) = open_index_with_caches(
@@ -477,6 +498,7 @@ async fn leaf_search_single_split(
         &split,
         Some(doc_mapper.tokenizer_manager()),
         Some(byte_range_cache.clone()),
+        index_id,
     )
     .await?;
 

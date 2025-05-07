@@ -115,9 +115,9 @@ impl MetastoreFactory for FileBackedMetastoreFactory {
         }
         debug!("metastore not found in cache");
         // We currently don't support any other authentication mechanism than the default one as
-        // we use metastore with Postgresql, and if we will change it to be backed in a file, it will
-        // be a file stored in our aws account and storage credentials are being used mainly for 
-        // cross-account access.
+        // we use metastore with Postgresql, and if we will change it to be backed in a file, it
+        // will be a file stored in our aws account and storage credentials are being used
+        // mainly for cross-account access.
         let storage = self
             .storage_resolver
             .resolve(&uri, &StorageCredentials::default())

@@ -48,6 +48,9 @@ pub struct ReportSplit {
     /// The storage uri. This URI does NOT include the split id.
     #[prost(string, tag = "1")]
     pub storage_uri: ::prost::alloc::string::String,
+    /// The index id this split belongs to
+    #[prost(string, tag = "3")]
+    pub index_id: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -380,6 +383,9 @@ pub struct SplitIdAndFooterOffsets {
     /// The number of docs in the split
     #[prost(uint64, tag = "6")]
     pub num_docs: u64,
+    /// The ID of the index this split belongs to
+    #[prost(string, optional, tag = "7")]
+    pub index_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Hits returned by a FetchDocRequest.
 ///
@@ -548,6 +554,9 @@ pub struct FetchDocsRequest {
     /// `DocMapper` as json serialized trait.
     #[prost(string, tag = "6")]
     pub doc_mapper: ::prost::alloc::string::String,
+    /// Index ID that these splits belong to
+    #[prost(string, optional, tag = "9")]
+    pub index_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -617,6 +626,9 @@ pub struct LeafListTermsRequest {
     /// Storage credentials for accessing the storage
     #[prost(message, optional, tag = "4")]
     pub storage_credentials: ::core::option::Option<StorageCredentials>,
+    /// Index ID that these splits belong to
+    #[prost(string, optional, tag = "5")]
+    pub index_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]

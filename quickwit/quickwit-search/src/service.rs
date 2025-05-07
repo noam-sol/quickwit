@@ -23,7 +23,14 @@ use quickwit_common::uri::Uri;
 use quickwit_config::SearcherConfig;
 use quickwit_doc_mapper::DocMapper;
 use quickwit_proto::metastore::MetastoreServiceClient;
-use quickwit_proto::search::{FetchDocsRequest, FetchDocsResponse, GetKvRequest, Hit, LeafListFieldsRequest, LeafListTermsRequest, LeafListTermsResponse, LeafSearchRequest, LeafSearchResponse, LeafSearchStreamRequest, LeafSearchStreamResponse, ListFieldsRequest, ListFieldsResponse, ListTermsRequest, ListTermsResponse, PutKvRequest, ReportSplitsRequest, ReportSplitsResponse, ScrollRequest, SearchPlanResponse, SearchRequest, SearchResponse, SearchStreamRequest, SnippetRequest};
+use quickwit_proto::search::{
+    FetchDocsRequest, FetchDocsResponse, GetKvRequest, Hit, LeafListFieldsRequest,
+    LeafListTermsRequest, LeafListTermsResponse, LeafSearchRequest, LeafSearchResponse,
+    LeafSearchStreamRequest, LeafSearchStreamResponse, ListFieldsRequest, ListFieldsResponse,
+    ListTermsRequest, ListTermsResponse, PutKvRequest, ReportSplitsRequest, ReportSplitsResponse,
+    ScrollRequest, SearchPlanResponse, SearchRequest, SearchResponse, SearchStreamRequest,
+    SnippetRequest,
+};
 use quickwit_storage::{
     MemorySizedCache, QuickwitCache, SplitCache, StorageCache, StorageResolver,
 };
@@ -240,6 +247,7 @@ impl SearchService for SearchServiceImpl {
             &fetch_docs_request.split_offsets,
             doc_mapper,
             snippet_request_opt,
+            fetch_docs_request.index_id.as_deref(),
         )
         .await?;
 
@@ -324,6 +332,7 @@ impl SearchService for SearchServiceImpl {
             &search_request,
             storage.clone(),
             &split_ids[..],
+            leaf_search_request.index_id.as_deref(),
         )
         .await?;
 

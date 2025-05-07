@@ -15,7 +15,7 @@
 mod download_task;
 mod split_table;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsStr;
 use std::io;
 use std::ops::Range;
@@ -26,10 +26,12 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use quickwit_common::split_file;
 use quickwit_common::uri::Uri;
-use quickwit_config::SplitCacheLimits;
+use quickwit_config::{SplitCacheLimits, StorageCredentials};
+use quickwit_proto::metastore::MetastoreServiceClient;
 use quickwit_proto::search::ReportSplit;
+use serde::Deserialize;
 use tantivy::directory::OwnedBytes;
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use ulid::Ulid;
 
 use crate::file_descriptor_cache::{FileDescriptorCache, SplitFile};
@@ -48,6 +50,9 @@ pub struct SplitCache {
     // of whether they are in cache, being downloaded, or just available for download.
     split_table: Mutex<SplitTable>,
     fd_cache: FileDescriptorCache,
+    metastore_client: MetastoreServiceClient,
+    index_to_credentials_cache: Mutex<HashMap<String, StorageCredentials>>,
+    split_to_index_map: Mutex<HashMap<Ulid, String>>,
 }
 
 impl SplitCache {
@@ -57,6 +62,7 @@ impl SplitCache {
         root_path: PathBuf,
         storage_resolver: crate::StorageResolver,
         limits: SplitCacheLimits,
+        metastore_client: MetastoreServiceClient,
     ) -> io::Result<Arc<SplitCache>> {
         std::fs::create_dir_all(&root_path)?;
         let mut existing_splits: BTreeMap<Ulid, u64> = Default::default();
@@ -107,6 +113,9 @@ impl SplitCache {
             root_path,
             split_table: Mutex::new(split_table),
             fd_cache,
+            metastore_client: metastore_client.clone(),
+            index_to_credentials_cache: Mutex::new(HashMap::new()),
+            split_to_index_map: Mutex::new(HashMap::new()),
         });
 
         spawn_download_task(
@@ -121,6 +130,12 @@ impl SplitCache {
     /// Remove splits from both the fd cache and the split cache.
     /// This method does NOT update the split table.
     pub(crate) fn evict(&self, splits_to_evict: &[Ulid]) {
+        if let Ok(mut split_to_index_map) = self.split_to_index_map.lock() {
+            for &split_id in splits_to_evict {
+                split_to_index_map.remove(&split_id);
+            }
+        }
+
         self.fd_cache.evict_split_files(splits_to_evict);
         delete_evicted_splits(&self.root_path, splits_to_evict);
     }
@@ -137,6 +152,8 @@ impl SplitCache {
     /// Report the split cache about the existence of new splits.
     pub fn report_splits(&self, report_splits: Vec<ReportSplit>) {
         let mut split_table = self.split_table.lock().unwrap();
+        let mut split_to_index_map = self.split_to_index_map.lock().unwrap();
+
         for report_split in report_splits {
             let Ok(split_ulid) = Ulid::from_str(&report_split.split_id) else {
                 error!(split_id=%report_split.split_id, "received invalid split ulid: ignoring");
@@ -146,20 +163,134 @@ impl SplitCache {
                 error!(storage_uri=%report_split.storage_uri, "received invalid storage uri: ignoring");
                 continue;
             };
-            split_table.report(split_ulid, storage_uri);
+            if report_split.index_id.is_empty() {
+                error!(split_id=%report_split.split_id, "received empty index_id: ignoring split report");
+                continue;
+            }
+
+            let index_id = report_split.index_id;
+
+            split_to_index_map.insert(split_ulid, index_id.clone());
+            debug!(split_id=%split_ulid, index_id=%index_id, "Stored mapping of split to index");
+
+            split_table.report(split_ulid, storage_uri, index_id);
+        }
+    }
+
+    /// Fetch storage credentials for a specific index directly from the metastore
+    ///
+    /// This is an internal helper function used by get_index_storage_credentials
+    async fn fetch_credentials_from_metastore(
+        &self,
+        index_id: &str,
+    ) -> Result<StorageCredentials, String> {
+        use quickwit_proto::metastore::{IndexMetadataRequest, MetastoreService};
+
+        let request = IndexMetadataRequest {
+            index_id: Some(index_id.to_string()),
+            index_uid: None,
+        };
+
+        let response = self
+            .metastore_client
+            .index_metadata(request)
+            .await
+            .map_err(|err| format!("Failed to get index metadata: {}", err))?;
+
+        if response.index_metadata_serialized_json.is_empty() {
+            return Err("No index metadata returned".to_string());
+        }
+
+        #[derive(Deserialize)]
+        struct IndexMetadataWrapper {
+            index_config: quickwit_config::IndexConfig,
+        }
+
+        let config =
+            serde_json::from_str::<IndexMetadataWrapper>(&response.index_metadata_serialized_json)
+                .map(|wrapper| wrapper.index_config)
+                .or_else(|_| {
+                    serde_json::from_str::<quickwit_config::IndexConfig>(
+                        &response.index_metadata_serialized_json,
+                    )
+                })
+                .map_err(|err| format!("Failed to parse index config: {}", err))?;
+
+        Ok(config.storage_credentials)
+    }
+
+    /// Get storage credentials for a specific index, using the cache if available
+    /// This method will try to fetch credentials from the cache first, if they don't exist,
+    /// it will fetch them from the metastore and update the cache
+    pub async fn get_index_storage_credentials(
+        &self,
+        index_id: &str,
+    ) -> Result<StorageCredentials, String> {
+        {
+            let cache_guard = self
+                .index_to_credentials_cache
+                .lock()
+                .map_err(|_| "Failed to acquire lock on credentials cache.".to_string())?;
+
+            if let Some(credentials) = cache_guard.get(index_id) {
+                debug!(index_id=%index_id, "Using cached credentials for index");
+                return Ok(credentials.clone());
+            }
+        }
+
+        info!(index_id=%index_id, "Fetching credentials for index from metastore");
+        let credentials = self.fetch_credentials_from_metastore(index_id).await?;
+
+        {
+            let mut cache_guard = self.index_to_credentials_cache.lock().map_err(|_| {
+                "Failed to acquire lock on credentials cache for storing new credentials"
+                    .to_string()
+            })?;
+
+            cache_guard.insert(index_id.to_string(), credentials.clone());
+        }
+
+        Ok(credentials)
+    }
+
+    /// Get the index ID for a given split Ulid
+    ///
+    /// This function looks up the index ID from the internal mapping. If the split_id
+    /// is not found or there's an error accessing the map, it returns "unknown-index".
+    ///
+    /// Returns:
+    ///   - The index ID string if found in the mapping
+    ///   - "unknown-index" if not found or if an error occurs
+    fn get_index_id_for_split_ulid(&self, split_id: &Ulid) -> String {
+        match self.split_to_index_map.lock() {
+            Ok(map) => {
+                if let Some(index_id) = map.get(split_id) {
+                    debug!(split_id=%split_id, index_id=%index_id, "Found index ID for split");
+                    index_id.clone()
+                } else {
+                    warn!(split_id=%split_id, "No index ID found for split, using default");
+                    "unknown-index".to_string()
+                }
+            }
+            Err(err) => {
+                error!(split_id=%split_id, error=%err, "Failed to acquire lock on split to index map");
+                "unknown-index".to_string()
+            }
         }
     }
 
     // Returns a split guard object. As long as it is not dropped, the
     // split won't be evinced from the cache.
     async fn get_split_file(&self, split_id: Ulid, storage_uri: &Uri) -> Option<SplitFile> {
+        let index_id = self.get_index_id_for_split_ulid(&split_id);
+
         // We touch before even checking the fd cache in order to update the file's last access time
         // for the file cache.
-        let num_bytes_opt: Option<u64> = self
-            .split_table
-            .lock()
-            .unwrap()
-            .touch(split_id, storage_uri);
+        let num_bytes_opt: Option<u64> =
+            self.split_table
+                .lock()
+                .unwrap()
+                .touch(split_id, storage_uri, index_id);
 
         let num_bytes = num_bytes_opt?;
         self.fd_cache

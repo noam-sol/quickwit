@@ -201,20 +201,22 @@ pub fn jobs_to_leaf_requests(
     let search_request_for_leaf = request.clone();
     let mut leaf_search_requests = Vec::new();
     group_jobs_by_index_id(jobs, |job_group| {
-        let index_uid = &job_group[0].index_uid;
-        let index_meta = index_uid_to_meta.get(index_uid).ok_or_else(|| {
+        let index_uid = job_group[0].index_uid.clone();
+        let index_meta = index_uid_to_meta.get(&index_uid).ok_or_else(|| {
             SearchError::Internal(format!(
                 "received list fields job for an unknown index {index_uid}. it should never happen"
             ))
         })?;
 
-        let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+        let proto_storage_credentials =
+            convert_config_credentials_to_proto(&index_meta.storage_credentials);
 
         let leaf_search_request = LeafListTermsRequest {
             list_terms_request: Some(search_request_for_leaf.clone()),
             index_uri: index_meta.index_uri.to_string(),
             split_offsets: job_group.into_iter().map(|job| job.offsets).collect(),
             storage_credentials: Some(proto_storage_credentials),
+            index_id: Some(index_uid.index_id.clone()),
         };
         leaf_search_requests.push(leaf_search_request);
         Ok(())
@@ -229,11 +231,19 @@ async fn leaf_list_terms_single_split(
     search_request: &ListTermsRequest,
     storage: Arc<dyn Storage>,
     split: SplitIdAndFooterOffsets,
+    index_id: Option<&str>,
 ) -> crate::Result<LeafListTermsResponse> {
     let cache =
         ByteRangeCache::with_infinite_capacity(&quickwit_storage::STORAGE_METRICS.shortlived_cache);
-    let (index, _) =
-        open_index_with_caches(searcher_context, storage, &split, None, Some(cache)).await?;
+    let (index, _) = open_index_with_caches(
+        searcher_context,
+        storage,
+        &split,
+        None,
+        Some(cache),
+        index_id,
+    )
+    .await?;
     let split_schema = index.schema();
     let reader = index
         .reader_builder()
@@ -340,6 +350,7 @@ pub async fn leaf_list_terms(
     request: &ListTermsRequest,
     index_storage: Arc<dyn Storage>,
     splits: &[SplitIdAndFooterOffsets],
+    index_id: Option<&str>,
 ) -> Result<LeafListTermsResponse, SearchError> {
     info!(split_offsets = ?PrettySample::new(splits, 5));
     let permit_sizes = splits.iter().map(|split| {
@@ -372,6 +383,7 @@ pub async fn leaf_list_terms(
                     request,
                     index_storage_clone,
                     split.clone(),
+                    index_id,
                 )
                 .await;
                 timer.observe_duration();

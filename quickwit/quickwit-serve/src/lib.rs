@@ -583,6 +583,7 @@ pub async fn serve_quickwit(
                 node_config.data_dir_path.join("searcher-split-cache"),
                 storage_resolver.clone(),
                 split_cache_limits,
+                metastore_through_control_plane.clone(),
             )
             .context("failed to load searcher split cache")?;
             Some(split_cache)

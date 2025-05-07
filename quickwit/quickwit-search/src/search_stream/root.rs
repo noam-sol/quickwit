@@ -27,7 +27,9 @@ use tokio_stream::StreamMap;
 use tracing::*;
 
 use crate::cluster_client::ClusterClient;
-use crate::root::{convert_config_credentials_to_proto, refine_start_end_timestamp_from_ast, SearchJob};
+use crate::root::{
+    convert_config_credentials_to_proto, refine_start_end_timestamp_from_ast, SearchJob,
+};
 use crate::{list_relevant_splits, SearchError};
 
 /// Perform a distributed search stream.

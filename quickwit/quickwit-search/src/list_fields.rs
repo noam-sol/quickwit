@@ -52,8 +52,13 @@ pub async fn get_fields_from_split<'a>(
     {
         return Ok(Box::new(list_fields.fields.into_iter()));
     }
-    let (_, split_bundle) =
-        open_split_bundle(searcher_context, index_storage, split_and_footer_offsets).await?;
+    let (_, split_bundle) = open_split_bundle(
+        searcher_context,
+        index_storage,
+        split_and_footer_offsets,
+        Some(&index_id),
+    )
+    .await?;
 
     let serialized_split_fields = split_bundle
         .get_all(Path::new(SPLIT_FIELDS_FILE_NAME))
@@ -365,7 +370,8 @@ pub fn jobs_to_leaf_requests(
             ))
         })?;
 
-        let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+        let proto_storage_credentials =
+            convert_config_credentials_to_proto(&index_meta.storage_credentials);
 
         let leaf_search_request = LeafListFieldsRequest {
             index_id: index_meta.index_id.to_string(),

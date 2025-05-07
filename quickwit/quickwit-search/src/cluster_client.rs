@@ -375,7 +375,10 @@ mod tests {
     use std::collections::HashSet;
     use std::net::SocketAddr;
 
-    use quickwit_proto::search::{IndexStorageAccess, LeafRequestRef, PartialHit, SearchRequest, SearchStreamRequest, SortValue, SplitIdAndFooterOffsets, SplitSearchError, StorageCredentials};
+    use quickwit_proto::search::{
+        IndexStorageAccess, LeafRequestRef, PartialHit, SearchRequest, SearchStreamRequest,
+        SortValue, SplitIdAndFooterOffsets, SplitSearchError, StorageCredentials,
+    };
     use quickwit_query::query_ast::qast_json_helper;
 
     use super::*;
@@ -403,6 +406,7 @@ mod tests {
                 timestamp_start: None,
                 timestamp_end: None,
                 num_docs: 0,
+                index_id: None,
             }],
             ..Default::default()
         }
@@ -435,6 +439,7 @@ mod tests {
                         timestamp_start: None,
                         timestamp_end: None,
                         num_docs: 0,
+                        index_id: None,
                     },
                     SplitIdAndFooterOffsets {
                         split_id: "split_2".to_string(),
@@ -443,6 +448,7 @@ mod tests {
                         timestamp_start: None,
                         timestamp_end: None,
                         num_docs: 0,
+                        index_id: None,
                     },
                 ],
             }],
@@ -472,6 +478,7 @@ mod tests {
                     timestamp_start: None,
                     timestamp_end: None,
                     num_docs: 0,
+                    index_id: None,
                 },
                 SplitIdAndFooterOffsets {
                     split_id: "split_2".to_string(),
@@ -480,6 +487,7 @@ mod tests {
                     timestamp_start: None,
                     timestamp_end: None,
                     num_docs: 0,
+                    index_id: None,
                 },
             ],
             storage_credentials: Some(StorageCredentials::default()),

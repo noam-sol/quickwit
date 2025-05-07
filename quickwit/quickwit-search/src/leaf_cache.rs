@@ -204,6 +204,7 @@ mod tests {
             timestamp_start: None,
             timestamp_end: None,
             num_docs: 0,
+            index_id: None,
         };
 
         let split_2 = SplitIdAndFooterOffsets {
@@ -213,6 +214,7 @@ mod tests {
             timestamp_start: None,
             timestamp_end: None,
             num_docs: 0,
+            index_id: None,
         };
 
         let query_1 = SearchRequest {
@@ -270,6 +272,7 @@ mod tests {
             timestamp_start: Some(100),
             timestamp_end: Some(199),
             num_docs: 0,
+            index_id: None,
         };
         let split_2 = SplitIdAndFooterOffsets {
             split_id: "split_2".to_string(),
@@ -278,6 +281,7 @@ mod tests {
             timestamp_start: Some(150),
             timestamp_end: Some(249),
             num_docs: 0,
+            index_id: None,
         };
         let split_3 = SplitIdAndFooterOffsets {
             split_id: "split_3".to_string(),
@@ -286,6 +290,7 @@ mod tests {
             timestamp_start: Some(150),
             timestamp_end: Some(249),
             num_docs: 0,
+            index_id: None,
         };
 
         let query_1 = SearchRequest {

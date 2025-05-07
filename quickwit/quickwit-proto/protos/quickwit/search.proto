@@ -105,6 +105,8 @@ message ReportSplit {
   string split_id = 2;
   // The storage uri. This URI does NOT include the split id.
   string storage_uri = 1;
+  // The index id this split belongs to
+  string index_id = 3;
 }
 
 message ReportSplitsRequest {
@@ -407,6 +409,8 @@ message SplitIdAndFooterOffsets {
   optional int64 timestamp_end = 5;
   // The number of docs in the split
   uint64 num_docs = 6;
+  // The ID of the index this split belongs to
+  optional string index_id = 7;
 }
 
 // Hits returned by a FetchDocRequest.
@@ -542,6 +546,9 @@ message FetchDocsRequest {
   // `DocMapper` as json serialized trait.
   string doc_mapper = 6;
 
+  // Index ID that these splits belong to
+  optional string index_id = 9;
+
   reserved 5;
 }
 
@@ -596,6 +603,9 @@ message LeafListTermsRequest {
 
   // Storage credentials for accessing the storage
   optional StorageCredentials storage_credentials = 4;
+
+  // Index ID that these splits belong to
+  optional string index_id = 5;
 }
 
 message LeafListTermsResponse {

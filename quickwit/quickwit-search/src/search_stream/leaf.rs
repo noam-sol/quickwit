@@ -125,12 +125,19 @@ async fn leaf_search_stream_single_split(
 
     let cache =
         ByteRangeCache::with_infinite_capacity(&quickwit_storage::STORAGE_METRICS.shortlived_cache);
+    let index_id = if !stream_request.index_id.is_empty() {
+        Some(stream_request.index_id.as_str())
+    } else {
+        None
+    };
+
     let (index, _) = open_index_with_caches(
         &searcher_context,
         storage,
         &split,
         Some(doc_mapper.tokenizer_manager()),
         Some(cache),
+        index_id,
     )
     .await?;
     let split_schema = index.schema();

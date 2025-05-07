@@ -82,9 +82,11 @@ mod tests {
             search_request: Some(search_request),
             doc_mappers: vec!["doc_mapper".to_string()],
             index_uris: vec!["uri".to_string()],
+            index_storage_accesses: vec![],
             leaf_requests: vec![LeafRequestRef {
                 index_uri_ord: 0,
                 doc_mapper_ord: 0,
+                index_storage_access_ord: 0,
                 split_offsets: vec![
                     SplitIdAndFooterOffsets {
                         split_id: "split_1".to_string(),
@@ -93,6 +95,7 @@ mod tests {
                         timestamp_start: None,
                         timestamp_end: None,
                         num_docs: 0,
+                        index_id: None,
                     },
                     SplitIdAndFooterOffsets {
                         split_id: "split_2".to_string(),
@@ -101,6 +104,7 @@ mod tests {
                         timestamp_start: None,
                         timestamp_end: None,
                         num_docs: 0,
+                        index_id: None,
                     },
                 ],
             }],

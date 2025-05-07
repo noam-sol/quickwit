@@ -45,7 +45,8 @@ pub use cluster_config::ClusterConfig;
 use index_config::serialize::{IndexConfigV0_8, VersionedIndexConfig};
 pub use index_config::{
     build_doc_mapper, load_index_config_from_user_config, load_index_config_update, IndexConfig,
-    IndexingResources, IndexingSettings, RetentionPolicy, SearchSettings, StorageCredentials, S3StorageCredentials
+    IndexingResources, IndexingSettings, RetentionPolicy, S3StorageCredentials, SearchSettings,
+    StorageCredentials,
 };
 pub use quickwit_doc_mapper::DocMapping;
 use serde::de::DeserializeOwned;

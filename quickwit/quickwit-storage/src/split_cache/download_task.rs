@@ -25,7 +25,7 @@ use crate::split_cache::split_table::{CandidateSplit, DownloadOpportunity};
 use crate::{SplitCache, StorageResolver};
 
 async fn download_split(
-    root_path: &Path,
+    split_cache: &SplitCache,
     candidate_split: &CandidateSplit,
     storage_resolver: StorageResolver,
 ) -> anyhow::Result<u64> {
@@ -33,12 +33,26 @@ async fn download_split(
         split_ulid,
         storage_uri,
         living_token: _,
+        index_id,
     } = candidate_split;
+
     let split_filename = split_file(*split_ulid);
-    let target_filepath = root_path.join(&split_filename);
-    // Using the storage credentials from the CandidateSplit
+    let target_filepath = split_cache.root_path.join(&split_filename);
+
+    let storage_credentials = split_cache
+        .get_index_storage_credentials(index_id)
+        .await
+        .unwrap_or_else(|err| {
+            tracing::error!(
+                index_id = %index_id,
+                error = %err,
+                "Failed to fetch index-specific credentials, using default credentials"
+            );
+            StorageCredentials::default()
+        });
+
     let storage = storage_resolver
-        .resolve(storage_uri, &StorageCredentials::default())
+        .resolve(storage_uri, &storage_credentials)
         .await?;
     let num_bytes = storage
         .copy_to_file(Path::new(&split_filename), &target_filepath)
@@ -57,14 +71,20 @@ async fn perform_eviction_and_download(
         split_to_download,
     } = download_opportunity;
     let split_ulid = split_to_download.split_ulid;
+    let index_id = split_to_download.index_id.clone();
+
     // tokio io runs on `spawn_blocking` threads anyway.
     let split_cache_clone = split_cache.clone();
     let _ = tokio::task::spawn_blocking(move || {
         split_cache_clone.evict(&splits_to_delete[..]);
     })
     .await;
-    let num_bytes =
-        download_split(&split_cache.root_path, &split_to_download, storage_resolver).await?;
+
+    let num_bytes = download_split(&split_cache, &split_to_download, storage_resolver).await?;
+
+    let mut split_to_index_map = split_cache.split_to_index_map.lock().unwrap();
+    split_to_index_map.insert(split_ulid, index_id);
+
     let mut shared_split_table_lock = split_cache.split_table.lock().unwrap();
     shared_split_table_lock.register_as_downloaded(split_ulid, num_bytes);
     Ok(())

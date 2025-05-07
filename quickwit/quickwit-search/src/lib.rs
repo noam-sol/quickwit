@@ -174,6 +174,7 @@ fn extract_split_and_footer_offsets(split_metadata: &SplitMetadata) -> SplitIdAn
             .as_ref()
             .map(|time_range| *time_range.end()),
         num_docs: split_metadata.num_docs as u64,
+        index_id: Some(split_metadata.index_uid.index_id.clone()),
     }
 }
 

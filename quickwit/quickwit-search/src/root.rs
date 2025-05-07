@@ -1754,7 +1754,7 @@ pub fn jobs_to_fetch_docs_requests(
         jobs,
         |job| &job.index_uid,
         |fetch_docs_jobs| {
-            let index_uid = &fetch_docs_jobs[0].index_uid;
+            let index_uid = &fetch_docs_jobs[0].index_uid.clone();
 
             let index_meta = indexes_metas_for_leaf_search
                 .get(index_uid)
@@ -1772,7 +1772,8 @@ pub fn jobs_to_fetch_docs_requests(
                 .map(|fetch_doc_job| fetch_doc_job.into())
                 .collect();
             // Convert config storage credentials to protobuf format
-            let proto_storage_credentials = convert_config_credentials_to_proto(&index_meta.storage_credentials);
+            let proto_storage_credentials =
+                convert_config_credentials_to_proto(&index_meta.storage_credentials);
 
             let fetch_docs_req = FetchDocsRequest {
                 partial_hits,
@@ -1781,6 +1782,7 @@ pub fn jobs_to_fetch_docs_requests(
                 storage_credentials: Some(proto_storage_credentials),
                 snippet_request: snippet_request_opt.clone(),
                 doc_mapper: index_meta.doc_mapper_str.clone(),
+                index_id: Some(index_uid.index_id.clone()),
             };
             fetch_docs_requests.push(fetch_docs_req);
 
@@ -1794,16 +1796,16 @@ pub fn jobs_to_fetch_docs_requests(
 pub fn convert_config_credentials_to_proto(
     credentials: &StorageCredentials,
 ) -> ProtoStorageCredentials {
-    let s3_credentials = credentials.s3.as_ref().map(|s3_creds| S3StorageCredentials {
-        role_arn: s3_creds.role_arn.clone(),
-        external_id: s3_creds.external_id.clone(),
-    });
+    let s3_credentials = credentials
+        .s3
+        .as_ref()
+        .map(|s3_creds| S3StorageCredentials {
+            role_arn: s3_creds.role_arn.clone(),
+            external_id: s3_creds.external_id.clone(),
+        });
 
-    ProtoStorageCredentials {
-        s3: s3_credentials,
-    }
+    ProtoStorageCredentials { s3: s3_credentials }
 }
-
 
 /// Helper function to get storage credentials from an Option<StorageCredentials> field.
 pub fn get_storage_credentials_from_option(
@@ -1817,22 +1819,21 @@ pub fn get_storage_credentials_from_option(
 
 /// Convert protobuf StorageCredentials to config StorageCredentials
 pub fn proto_storage_to_config_credentials(
-    proto_creds: &quickwit_proto::search::StorageCredentials
+    proto_creds: &quickwit_proto::search::StorageCredentials,
 ) -> StorageCredentials {
     if let Some(s3_proto) = proto_creds.s3.as_ref() {
         if s3_proto.role_arn.is_some() || s3_proto.external_id.is_some() {
-            return StorageCredentials{
+            return StorageCredentials {
                 s3: Some(quickwit_config::S3StorageCredentials {
                     role_arn: s3_proto.role_arn.clone(),
                     external_id: s3_proto.external_id.clone(),
-                })
+                }),
             };
         }
     }
 
     StorageCredentials::default()
 }
-
 
 #[cfg(test)]
 mod tests {
