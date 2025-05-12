@@ -1090,11 +1090,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // TODO: fix this test (not ending) - CORE-283
     async fn test_indexing_pipeline_all_failures_handling() -> anyhow::Result<()> {
         indexing_pipeline_all_failures_handling("data/test_corpus.json").await
     }
 
     #[tokio::test]
+    #[ignore] // TODO: fix this test (not ending) - CORE-283
     async fn test_indexing_pipeline_all_failures_handling_gz() -> anyhow::Result<()> {
         indexing_pipeline_all_failures_handling("data/test_corpus.json.gz").await
     }

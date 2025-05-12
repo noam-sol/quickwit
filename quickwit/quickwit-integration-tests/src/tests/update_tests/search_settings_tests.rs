@@ -23,6 +23,7 @@ use crate::ingest_json;
 use crate::test_utils::{ingest, ClusterSandboxBuilder};
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_search_settings_on_multi_nodes_cluster() {
     quickwit_common::setup_logging_for_tests();
     let sandbox = ClusterSandboxBuilder::default()

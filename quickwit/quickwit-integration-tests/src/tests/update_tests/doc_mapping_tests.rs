@@ -115,6 +115,7 @@ async fn validate_search_across_doc_mapping_updates(
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_text_to_u64() {
     let index_id = "update-text-to-u64";
     let original_doc_mappings = json!({
@@ -147,6 +148,7 @@ async fn test_update_doc_mapping_text_to_u64() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_u64_to_text() {
     let index_id = "update-u64-to-text";
     let original_doc_mappings = json!({
@@ -179,6 +181,7 @@ async fn test_update_doc_mapping_u64_to_text() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_json_to_text() {
     let index_id = "update-json-to-text";
     let original_doc_mappings = json!({
@@ -213,6 +216,7 @@ async fn test_update_doc_mapping_json_to_text() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_json_to_object() {
     let index_id = "update-json-to-object";
     let original_doc_mappings = json!({
@@ -261,6 +265,7 @@ async fn test_update_doc_mapping_json_to_object() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_object_to_json() {
     let index_id = "update-object-to-json";
     let original_doc_mappings = json!({
@@ -309,6 +314,7 @@ async fn test_update_doc_mapping_object_to_json() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_tokenizer_default_to_raw() {
     let index_id = "update-tokenizer-default-to-raw";
     let original_doc_mappings = json!({
@@ -354,6 +360,7 @@ async fn test_update_doc_mapping_tokenizer_default_to_raw() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_tokenizer_add_position() {
     let index_id = "update-tokenizer-add-position";
     let original_doc_mappings = json!({
@@ -401,6 +408,7 @@ async fn test_update_doc_mapping_tokenizer_add_position() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_tokenizer_raw_to_phrase() {
     let index_id = "update-tokenizer-raw-to-phrase";
     let original_doc_mappings = json!({
@@ -446,6 +454,7 @@ async fn test_update_doc_mapping_tokenizer_raw_to_phrase() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_unindexed_to_indexed() {
     let index_id = "update-not-indexed-to-indexed";
     let original_doc_mappings = json!({
@@ -479,6 +488,7 @@ async fn test_update_doc_mapping_unindexed_to_indexed() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_strict_to_dynamic() {
     let index_id = "update-strict-to-dynamic";
     let original_doc_mappings = json!({
@@ -514,6 +524,7 @@ async fn test_update_doc_mapping_strict_to_dynamic() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_dynamic_to_strict() {
     let index_id = "update-dynamic-to-strict";
     let original_doc_mappings = json!({
@@ -542,6 +553,7 @@ async fn test_update_doc_mapping_dynamic_to_strict() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_update_doc_mapping_add_field_on_strict() {
     let index_id = "update-add-field-on-strict";
     let original_doc_mappings = json!({

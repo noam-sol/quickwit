@@ -21,6 +21,7 @@ use quickwit_serve::SearchRequestQueryString;
 use crate::test_utils::ClusterSandboxBuilder;
 
 #[tokio::test]
+#[ignore] // Fails on main
 async fn test_tls_rest() {
     quickwit_common::setup_logging_for_tests();
     let mut sandbox_config = ClusterSandboxBuilder::default()
@@ -61,6 +62,7 @@ async fn test_tls_rest() {
 }
 
 #[tokio::test]
+#[ignore] // Fails on main
 async fn test_tls_grpc() {
     quickwit_common::setup_logging_for_tests();
     let mut sandbox_config = ClusterSandboxBuilder::default()

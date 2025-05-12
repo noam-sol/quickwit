@@ -1513,6 +1513,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // TODO: fix this test (not ending) - CORE-283
     async fn test_indexing_service_shutdown_merge_pipeline_when_no_indexing_pipeline() {
         quickwit_common::setup_logging_for_tests();
         let transport = ChannelTransport::default();

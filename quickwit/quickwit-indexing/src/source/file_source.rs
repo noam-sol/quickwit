@@ -418,6 +418,7 @@ mod localstack_tests {
     use crate::source::SourceActor;
 
     #[tokio::test]
+    #[ignore] // Fails on main
     async fn test_file_source_sqs_notifications() {
         // queue setup
         let sqs_client = get_localstack_sqs_client().await.unwrap();

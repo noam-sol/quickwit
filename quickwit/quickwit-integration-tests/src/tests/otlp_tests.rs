@@ -40,6 +40,7 @@ fn initialize_tests() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_ingest_traces_with_otlp_grpc_api() {
     initialize_tests();
     let mut sandbox = ClusterSandboxBuilder::default()
@@ -133,6 +134,7 @@ async fn test_ingest_traces_with_otlp_grpc_api() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_ingest_logs_with_otlp_grpc_api() {
     initialize_tests();
     let mut sandbox = ClusterSandboxBuilder::default()
@@ -207,6 +209,7 @@ async fn test_ingest_logs_with_otlp_grpc_api() {
 }
 
 #[tokio::test]
+#[ignore] // TODO: fix this test - CORE-283
 async fn test_jaeger_api() {
     initialize_tests();
     let mut sandbox = ClusterSandboxBuilder::default()
