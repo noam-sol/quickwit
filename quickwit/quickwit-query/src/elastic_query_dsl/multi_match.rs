@@ -24,6 +24,7 @@ use crate::elastic_query_dsl::match_query::{MatchQuery, MatchQueryParams};
 use crate::elastic_query_dsl::phrase_prefix_query::{
     MatchPhrasePrefixQuery, MatchPhrasePrefixQueryParams,
 };
+use crate::elastic_query_dsl::wildcard_phrase_query::{WildcardPhraseParams, WildcardPhraseQuery};
 use crate::elastic_query_dsl::{ConvertibleToQueryAst, ElasticQueryDslInner};
 
 /// Multi match queries are a bit odd. They end up being expanded into another type of query.
@@ -79,6 +80,14 @@ fn deserialize_match_query_for_one_field(
                 field: field.to_string(),
             };
             Ok(ElasticQueryDslInner::MatchBoolPrefix(bool_prefix))
+        }
+        MatchType::WildcardPhrase => {
+            let wildcard_phrase_params: WildcardPhraseParams = serde_json::from_value(json_val)?;
+            let wildcard_phrase = WildcardPhraseQuery {
+                params: wildcard_phrase_params,
+                field: field.to_string(),
+            };
+            Ok(ElasticQueryDslInner::WildcardPhrase(wildcard_phrase))
         }
         MatchType::MostFields | MatchType::BestFields | MatchType::CrossFields => {
             let match_query_params: MatchQueryParams = serde_json::from_value(json_val)?;
@@ -147,6 +156,7 @@ pub enum MatchType {
     Phrase,
     PhrasePrefix,
     BoolPrefix,
+    WildcardPhrase,
 }
 
 impl ConvertibleToQueryAst for MultiMatchQuery {
