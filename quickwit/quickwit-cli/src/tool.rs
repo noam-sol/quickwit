@@ -52,14 +52,13 @@ use quickwit_search::{single_node_search, SearchResponseRest};
 use quickwit_serve::{
     search_request_from_api_request, BodyFormat, SearchRequestQueryString, SortBy,
 };
-use quickwit_storage::{BundleStorage, Storage};
+use quickwit_storage::{BundleStorage, OwnedBytes, Storage, StorageResolver};
 use thousands::Separable;
 use tracing::{debug, info};
 
 use crate::checklist::{GREEN_COLOR, RED_COLOR};
 use crate::{
-    config_cli_arg, get_resolvers, load_node_config, run_index_checklist, start_actor_runtimes,
-    THROUGHPUT_WINDOW_SIZE,
+    config_cli_arg, get_resolvers, load_node_config, run_index_checklist, start_actor_runtimes, THROUGHPUT_WINDOW_SIZE
 };
 
 pub fn build_tool_command() -> Command {
@@ -133,6 +132,18 @@ pub fn build_tool_command() -> Command {
                         .display_order(2)
                         .required(true),
                     arg!(--"target-dir" <TARGET_DIR> "Directory to extract the split to."),
+                ])
+            )
+        .subcommand(
+            Command::new("extract-split-file")
+                .about("Extracts a split file to a directory.")
+                .args(&[
+                    arg!(--file <FILE> "Target split file path")
+                        .display_order(1)
+                        .required(true),
+                    arg!(--"target-dir" <TARGET_DIR> "Directory to extract the split to.")
+                        .display_order(2)
+                        .required(true),
                 ])
             )
         .subcommand(
@@ -216,12 +227,19 @@ pub struct ExtractSplitArgs {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub struct ExtractSplitFileArgs {
+    pub file: PathBuf,
+    pub target_dir: PathBuf,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub enum ToolCliCommand {
     GarbageCollect(GarbageCollectIndexArgs),
     LocalIngest(LocalIngestDocsArgs),
     LocalSearch(LocalSearchArgs),
     Merge(MergeArgs),
     ExtractSplit(ExtractSplitArgs),
+    ExtractSplitFile(ExtractSplitFileArgs),
 }
 
 impl ToolCliCommand {
@@ -235,6 +253,7 @@ impl ToolCliCommand {
             "local-search" => Self::parse_local_search_args(submatches),
             "merge" => Self::parse_merge_args(submatches),
             "extract-split" => Self::parse_extract_split_args(submatches),
+            "extract-split-file" => Self::parse_extract_split_file_args(submatches),
             _ => bail!("unknown tool subcommand `{subcommand}`"),
         }
     }
@@ -385,6 +404,21 @@ impl ToolCliCommand {
         }))
     }
 
+    fn parse_extract_split_file_args(mut matches: ArgMatches) -> anyhow::Result<Self> {
+        let file = matches
+            .remove_one::<String>("file")
+            .map(PathBuf::from)
+            .expect("`file` should be a required arg.");
+        let target_dir = matches
+            .remove_one::<String>("target-dir")
+            .map(PathBuf::from)
+            .expect("`target-dir` should be a required arg.");
+        Ok(Self::ExtractSplitFile(ExtractSplitFileArgs {
+            file,
+            target_dir,
+        }))
+    }
+
     pub async fn execute(self) -> anyhow::Result<()> {
         match self {
             Self::GarbageCollect(args) => garbage_collect_index_cli(args).await,
@@ -392,6 +426,7 @@ impl ToolCliCommand {
             Self::LocalSearch(args) => local_search_cli(args).await,
             Self::Merge(args) => merge_cli(args).await,
             Self::ExtractSplit(args) => extract_split_cli(args).await,
+            Self::ExtractSplitFile(args) => extract_split_file_cli(args).await,
         }
     }
 }
@@ -736,6 +771,29 @@ async fn extract_split_cli(args: ExtractSplitArgs) -> anyhow::Result<()> {
         split_data,
     )?;
     std::fs::create_dir_all(&args.target_dir)?;
+    for path in bundle_storage.iter_files() {
+        let mut out_path = args.target_dir.to_owned();
+        out_path.push(path);
+        println!("Copying {out_path:?}");
+        bundle_storage.copy_to_file(path, &out_path).await?;
+    }
+
+    println!("{} Split successfully extracted.", "✔".color(GREEN_COLOR));
+    Ok(())
+}
+
+async fn extract_split_file_cli(args: ExtractSplitFileArgs) -> anyhow::Result<()> {
+    debug!(args=?args, "extract-split-file");
+    println!("❯ Extracting split file...");
+
+    let index_storage = StorageResolver::unconfigured().resolve(&Uri::for_test("./")).await?;
+    let split_data = OwnedBytes::new(tokio::fs::read(&args.file).await?);
+    let (_hotcache_bytes, bundle_storage) = BundleStorage::open_from_split_data_with_owned_bytes(
+        index_storage,
+        args.file,
+        split_data,
+    )?;
+    tokio::fs::create_dir_all(&args.target_dir).await?;
     for path in bundle_storage.iter_files() {
         let mut out_path = args.target_dir.to_owned();
         out_path.push(path);
