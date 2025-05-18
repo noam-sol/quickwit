@@ -292,6 +292,7 @@ mod tests {
                         zero_terms_query: Default::default(),
                         analyzer: None,
                         slop: Default::default(),
+                        match_entire_field: Default::default(),
                     },
                 }
                 .into(),
@@ -302,6 +303,7 @@ mod tests {
                         zero_terms_query: Default::default(),
                         analyzer: None,
                         slop: Default::default(),
+                        match_entire_field: Default::default(),
                     },
                 }
                 .into(),

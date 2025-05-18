@@ -39,6 +39,8 @@ pub struct MatchPhraseQueryParams {
     pub(crate) analyzer: Option<String>,
     #[serde(default)]
     pub(crate) slop: u32,
+    #[serde(default)]
+    pub(crate) match_entire_field: bool,
 }
 
 impl ConvertibleToQueryAst for MatchPhraseQuery {
@@ -47,7 +49,7 @@ impl ConvertibleToQueryAst for MatchPhraseQuery {
             tokenizer: self.params.analyzer,
             mode: FullTextMode::Phrase {
                 slop: self.params.slop,
-                match_entire_field: false,
+                match_entire_field: self.params.match_entire_field,
             },
             zero_terms_query: self.params.zero_terms_query,
         };
@@ -87,6 +89,7 @@ impl From<String> for MatchPhraseQueryParams {
             zero_terms_query: Default::default(),
             analyzer: None,
             slop: 0,
+            match_entire_field: false,
         }
     }
 }
@@ -149,6 +152,7 @@ mod tests {
                 query: "hello".to_string(),
                 slop: 2u32,
                 zero_terms_query: crate::MatchAllOrNone::MatchAll,
+                match_entire_field: false,
             },
         };
         let ast = match_query.convert_to_query_ast().unwrap();
