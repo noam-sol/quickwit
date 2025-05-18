@@ -54,7 +54,10 @@ impl ConvertibleToQueryAst for MatchPhrasePrefixQuery {
         } = self.value;
         let analyzer = FullTextParams {
             tokenizer: analyzer,
-            mode: FullTextMode::Phrase { slop },
+            mode: FullTextMode::Phrase {
+                slop,
+                match_entire_field: false,
+            },
             zero_terms_query,
         };
         let phrase_prefix_query_ast = query_ast::PhrasePrefixQuery {

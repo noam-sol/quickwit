@@ -252,7 +252,10 @@ fn convert_user_input_literal(
         Delimiter::SingleQuotes => FullTextMode::Bool {
             operator: BooleanOperand::And,
         },
-        Delimiter::DoubleQuotes => FullTextMode::Phrase { slop },
+        Delimiter::DoubleQuotes => FullTextMode::Phrase {
+            slop,
+            match_entire_field: false,
+        },
     };
     let full_text_params = FullTextParams {
         tokenizer: None,
@@ -409,7 +412,10 @@ mod tests {
         assert_eq!(phrase_prefix_query.max_expansions, 50);
         assert_eq!(
             phrase_prefix_query.params.mode,
-            FullTextMode::Phrase { slop: 0 }
+            FullTextMode::Phrase {
+                slop: 0,
+                match_entire_field: false
+            }
         );
     }
 
@@ -494,7 +500,10 @@ mod tests {
             assert_eq!(&double_quote_query.text, "editor-in-chief");
             assert_eq!(
                 double_quote_query.params.mode,
-                FullTextMode::Phrase { slop: 0 }
+                FullTextMode::Phrase {
+                    slop: 0,
+                    match_entire_field: false
+                }
             );
         }
         {
@@ -504,7 +513,10 @@ mod tests {
             assert_eq!(&double_quote_query.text, "editor-in-chief");
             assert_eq!(
                 double_quote_query.params.mode,
-                FullTextMode::Phrase { slop: 2 }
+                FullTextMode::Phrase {
+                    slop: 2,
+                    match_entire_field: false
+                }
             );
         }
         {

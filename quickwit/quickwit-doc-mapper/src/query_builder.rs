@@ -858,7 +858,10 @@ mod test {
 
         let params = FullTextParams {
             tokenizer: None,
-            mode: FullTextMode::Phrase { slop: 0 },
+            mode: FullTextMode::Phrase {
+                slop: 0,
+                match_entire_field: false,
+            },
             zero_terms_query: MatchAllOrNone::MatchNone,
         };
         let short = PhrasePrefixQuery {

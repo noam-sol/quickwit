@@ -47,6 +47,7 @@ impl ConvertibleToQueryAst for MatchPhraseQuery {
             tokenizer: self.params.analyzer,
             mode: FullTextMode::Phrase {
                 slop: self.params.slop,
+                match_entire_field: false,
             },
             zero_terms_query: self.params.zero_terms_query,
         };
@@ -162,7 +163,13 @@ mod tests {
         };
         assert_eq!(field, "body");
         assert_eq!(text, "hello");
-        assert_eq!(params.mode, FullTextMode::Phrase { slop: 2u32 });
+        assert_eq!(
+            params.mode,
+            FullTextMode::Phrase {
+                slop: 2u32,
+                match_entire_field: false,
+            }
+        );
         assert_eq!(params.zero_terms_query, MatchAllOrNone::MatchAll);
     }
 }

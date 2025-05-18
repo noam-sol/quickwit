@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use anyhow::Context;
+use quickwit_common::is_false;
 use serde::{Deserialize, Serialize};
 use tantivy::query::{
     PhrasePrefixQuery as TantivyPhrasePrefixQuery, PhraseQuery as TantivyPhraseQuery,
@@ -137,7 +138,10 @@ impl FullTextParams {
                 }
                 Ok(TantivyBoolQuery::build_clause(operator, leaf_queries).into())
             }
-            FullTextMode::Phrase { slop } => {
+            FullTextMode::Phrase {
+                slop,
+                match_entire_field,
+            } => {
                 if !index_record_option.has_positions() {
                     return Err(InvalidQuery::SchemaError(
                         "Applied phrase query on field which does not have positions indexed"
@@ -146,6 +150,7 @@ impl FullTextParams {
                 }
                 let mut phrase_query = TantivyPhraseQuery::new_with_offset(terms);
                 phrase_query.set_slop(slop);
+                phrase_query.set_match_entire_field(match_entire_field);
                 Ok(phrase_query.into())
             }
             FullTextMode::PhraseFallbackToIntersection => {
@@ -193,6 +198,10 @@ pub enum FullTextMode {
     Phrase {
         #[serde(default, skip_serializing_if = "is_zero")]
         slop: u32,
+
+        // Match must equal entire field if true.
+        #[serde(default, skip_serializing_if = "is_false")]
+        match_entire_field: bool,
     },
 }
 
@@ -343,7 +352,10 @@ mod tests {
             text: "Hello World!".to_string(),
             params: super::FullTextParams {
                 tokenizer: None,
-                mode: FullTextMode::Phrase { slop: 1 },
+                mode: FullTextMode::Phrase {
+                    slop: 1,
+                    match_entire_field: false,
+                },
                 zero_terms_query: crate::MatchAllOrNone::MatchAll,
             },
             lenient: false,
@@ -374,7 +386,10 @@ mod tests {
             text: "Hello world".to_string(),
             params: super::FullTextParams {
                 tokenizer: Some("raw".to_string()),
-                mode: FullTextMode::Phrase { slop: 1 },
+                mode: FullTextMode::Phrase {
+                    slop: 1,
+                    match_entire_field: false,
+                },
                 zero_terms_query: crate::MatchAllOrNone::MatchAll,
             },
             lenient: false,
