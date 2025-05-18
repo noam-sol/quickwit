@@ -19,8 +19,8 @@ use std::ops::Bound;
 use anyhow::Context;
 use quickwit_query::query_ast::wildcard_query::RegexTerms;
 use quickwit_query::query_ast::{
-    FieldPresenceQuery, FullTextQuery, PhrasePrefixQuery, QueryAst, QueryAstVisitor, RangeQuery,
-    RegexQuery, TermSetQuery, WildcardQuery,
+    FieldPresenceQuery, FullTextMode, FullTextQuery, PhrasePrefixQuery, QueryAst, QueryAstVisitor,
+    RangeQuery, RegexQuery, TermSetQuery, WildcardQuery,
 };
 use quickwit_query::tokenizers::TokenizerManager;
 use quickwit_query::{find_field_or_hit_dynamic, InvalidQuery};
@@ -82,6 +82,28 @@ impl<'a> QueryAstVisitor<'a> for ExistsQueryFastFields {
     }
 }
 
+#[derive(Default)]
+struct FieldNormsVisitor {
+    needs_fieldnorms: bool,
+}
+
+impl<'a> QueryAstVisitor<'a> for FieldNormsVisitor {
+    type Err = Infallible;
+
+    fn visit_full_text(&mut self, full_text_query: &'a FullTextQuery) -> Result<(), Infallible> {
+        if matches!(
+            full_text_query.params.mode,
+            FullTextMode::Phrase {
+                match_entire_field: true,
+                ..
+            }
+        ) {
+            self.needs_fieldnorms = true;
+        }
+        Ok(())
+    }
+}
+
 /// Build a `Query` with field resolution & forbidding range clauses.
 pub(crate) fn build_query(
     query_ast: &QueryAst,
@@ -134,13 +156,14 @@ pub(crate) fn build_query(
             .or_default() |= need_position;
     });
 
-    let warmup_info = WarmupInfo {
+    let field_norms = should_warmup_field_norms(query_ast);
+    let warmup_info: WarmupInfo = WarmupInfo {
         term_dict_fields: term_set_query_fields,
+        field_norms,
         terms_grouped_by_field,
         term_ranges_grouped_by_field,
         fast_fields,
         automatons_grouped_by_field,
-        ..WarmupInfo::default()
     };
 
     Ok((query, warmup_info))
@@ -184,6 +207,13 @@ fn extract_term_set_query_fields(
     let mut visitor = ExtractTermSetFields::new(schema);
     visitor.visit(query_ast)?;
     Ok(visitor.term_dict_fields_to_warm_up)
+}
+
+fn should_warmup_field_norms(query_ast: &QueryAst) -> bool {
+    let mut field_norms_visitor = FieldNormsVisitor::default();
+    // This cannot fail. The error type is Infallible.
+    let _: Result<(), Infallible> = field_norms_visitor.visit(query_ast);
+    field_norms_visitor.needs_fieldnorms
 }
 
 fn prefix_term_to_range(prefix: Term) -> (Bound<Term>, Bound<Term>) {
