@@ -394,11 +394,9 @@ mod tests {
             terms,
             vec![
                 "MyString",
-                "Wh1ch.",
-                "a\\.nOrMal",
+                "Wh1ch.a\\.nOrMal",
                 "Tokenizer",
-                "would.*",
-                "cut",
+                "would.*cut",
             ],
         );
     }
@@ -428,11 +426,9 @@ mod tests {
             terms,
             vec![
                 "MyString",
-                "Wh1ch.",
-                "a\\.nOrMal",
+                "Wh1ch.a\\.nOrMal",
                 "Tokenizer",
-                "would.*",
-                "cut",
+                "would.*cut",
             ],
         );
     }
