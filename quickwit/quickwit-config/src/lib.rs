@@ -127,6 +127,8 @@ pub fn disable_ingest_v1() -> bool {
     TransformConfig,
     VecSourceParams,
     VoidSourceParams,
+    StorageCredentials,
+    S3StorageCredentials,
 )))]
 /// Schema used for the OpenAPI generation which are apart of this crate.
 pub struct ConfigApiSchemas;

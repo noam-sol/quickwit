@@ -257,14 +257,14 @@ pub struct IndexConfig {
     pub storage_credentials: StorageCredentials,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3StorageCredentials>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct S3StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
