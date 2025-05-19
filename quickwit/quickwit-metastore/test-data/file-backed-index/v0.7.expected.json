@@ -107,7 +107,8 @@
       "retention": {
         "period": "90 days",
         "schedule": "daily"
-      }
+      },
+      "storage_credentials": {}
     },
     "checkpoint": {
       "kafka-source": {
