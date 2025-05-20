@@ -325,6 +325,7 @@ mod tests {
                         max_expansions: default_max_expansions(),
                         slop: Default::default(),
                         zero_terms_query: Default::default(),
+                        must_start: false,
                     },
                 }
                 .into(),
@@ -336,6 +337,7 @@ mod tests {
                         max_expansions: default_max_expansions(),
                         slop: Default::default(),
                         zero_terms_query: Default::default(),
+                        must_start: false,
                     },
                 }
                 .into(),

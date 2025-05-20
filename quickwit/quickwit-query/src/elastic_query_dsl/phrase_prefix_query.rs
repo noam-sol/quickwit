@@ -35,6 +35,8 @@ pub(crate) struct MatchPhrasePrefixQueryParams {
     pub slop: u32,
     #[serde(default, skip_serializing_if = "MatchAllOrNone::is_none")]
     pub zero_terms_query: MatchAllOrNone,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub must_start: bool,
 }
 
 impl From<MatchPhrasePrefixQuery> for ElasticQueryDslInner {
@@ -51,6 +53,7 @@ impl ConvertibleToQueryAst for MatchPhrasePrefixQuery {
             max_expansions,
             slop,
             zero_terms_query,
+            must_start,
         } = self.value;
         let analyzer = FullTextParams {
             tokenizer: analyzer,
@@ -66,7 +69,7 @@ impl ConvertibleToQueryAst for MatchPhrasePrefixQuery {
             params: analyzer,
             max_expansions,
             lenient: false,
-            must_start: false,
+            must_start,
         };
         Ok(phrase_prefix_query_ast.into())
     }
@@ -89,6 +92,7 @@ mod tests {
                 max_expansions: 50,
                 slop: 0,
                 zero_terms_query: MatchAllOrNone::MatchNone,
+                must_start: false,
             },
         };
 
