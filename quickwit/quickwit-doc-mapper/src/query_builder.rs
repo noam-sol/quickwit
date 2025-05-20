@@ -900,6 +900,7 @@ mod test {
             max_expansions: 50,
             params: params.clone(),
             lenient: false,
+            must_start: false,
         };
         let long = PhrasePrefixQuery {
             field: "title".to_string(),
@@ -907,6 +908,7 @@ mod test {
             max_expansions: 50,
             params: params.clone(),
             lenient: false,
+            must_start: false,
         };
         let mut extractor1 = ExtractPrefixTermRanges::with_schema(&schema, &tokenizer_manager);
         extractor1.visit_phrase_prefix(&short).unwrap();

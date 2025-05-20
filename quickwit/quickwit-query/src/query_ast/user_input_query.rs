@@ -273,6 +273,7 @@ fn convert_user_input_literal(
                     params: full_text_params.clone(),
                     max_expansions: DEFAULT_PHRASE_QUERY_MAX_EXPANSION,
                     lenient,
+                    must_start: false,
                 }
                 .into()
             } else if wildcard {

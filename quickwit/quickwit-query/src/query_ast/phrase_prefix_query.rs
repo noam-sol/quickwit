@@ -35,6 +35,7 @@ pub struct PhrasePrefixQuery {
     pub params: FullTextParams,
     /// Support missing fields
     pub lenient: bool,
+    pub must_start: bool,
 }
 
 impl PhrasePrefixQuery {
@@ -134,6 +135,7 @@ impl BuildTantivyAst for PhrasePrefixQuery {
         } else {
             let mut phrase_prefix_query = TantivyPhrasePrefixQuery::new_with_offset(terms);
             phrase_prefix_query.set_max_expansions(self.max_expansions);
+            phrase_prefix_query.set_must_start(self.must_start);
             Ok(phrase_prefix_query.into())
         }
     }
