@@ -386,6 +386,7 @@ def main():
 
 if __name__ == "__main__":
     import sys
+    print("Starting rest api tests")
     if main():
         sys.exit(0)
     else:
