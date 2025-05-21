@@ -58,7 +58,8 @@ use tracing::{debug, info};
 
 use crate::checklist::{GREEN_COLOR, RED_COLOR};
 use crate::{
-    config_cli_arg, get_resolvers, load_node_config, run_index_checklist, start_actor_runtimes, THROUGHPUT_WINDOW_SIZE
+    config_cli_arg, get_resolvers, load_node_config, run_index_checklist, start_actor_runtimes,
+    THROUGHPUT_WINDOW_SIZE,
 };
 
 pub fn build_tool_command() -> Command {
@@ -786,13 +787,12 @@ async fn extract_split_file_cli(args: ExtractSplitFileArgs) -> anyhow::Result<()
     debug!(args=?args, "extract-split-file");
     println!("❯ Extracting split file...");
 
-    let index_storage = StorageResolver::unconfigured().resolve(&Uri::for_test("./")).await?;
+    let index_storage = StorageResolver::unconfigured()
+        .resolve(&Uri::for_test("./"))
+        .await?;
     let split_data = OwnedBytes::new(tokio::fs::read(&args.file).await?);
-    let (_hotcache_bytes, bundle_storage) = BundleStorage::open_from_split_data_with_owned_bytes(
-        index_storage,
-        args.file,
-        split_data,
-    )?;
+    let (_hotcache_bytes, bundle_storage) =
+        BundleStorage::open_from_split_data_with_owned_bytes(index_storage, args.file, split_data)?;
     tokio::fs::create_dir_all(&args.target_dir).await?;
     for path in bundle_storage.iter_files() {
         let mut out_path = args.target_dir.to_owned();
