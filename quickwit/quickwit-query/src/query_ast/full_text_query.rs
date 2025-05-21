@@ -375,7 +375,8 @@ mod tests {
         assert_eq!(
             &format!("{:?}", leaf),
             "PhraseQuery { field: Field(0), phrase_terms: [(0, Term(field=0, type=Str, \
-             \"hello\")), (1, Term(field=0, type=Str, \"world\"))], slop: 1 }"
+             \"hello\")), (1, Term(field=0, type=Str, \"world\"))], slop: 1, match_entire_field: \
+             false }"
         );
     }
 
