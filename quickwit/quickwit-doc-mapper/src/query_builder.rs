@@ -315,7 +315,11 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
             Err(e) => return Err(e),
         };
         if let Some((_, term)) = terms.last() {
-            self.add_prefix_term(term.clone(), phrase_prefix.max_expansions, terms.len() > 1);
+            self.add_prefix_term(
+                term.clone(),
+                phrase_prefix.max_expansions,
+                terms.len() > 1 || phrase_prefix.must_start,
+            );
         }
         Ok(())
     }
