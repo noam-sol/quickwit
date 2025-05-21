@@ -5351,7 +5351,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "ownedbytes"
 version = "0.7.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "stable_deref_trait",
 ]
@@ -9152,11 +9152,12 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 [[package]]
 name = "tantivy"
 version = "0.23.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "aho-corasick",
  "arc-swap",
  "base64 0.22.1",
+ "bitflags 2.6.0",
  "bitpacking",
  "bon",
  "byteorder",
@@ -9207,7 +9208,7 @@ dependencies = [
 [[package]]
 name = "tantivy-bitpacker"
 version = "0.6.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "bitpacking",
 ]
@@ -9215,7 +9216,7 @@ dependencies = [
 [[package]]
 name = "tantivy-columnar"
 version = "0.3.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "downcast-rs",
  "fastdivide",
@@ -9230,7 +9231,7 @@ dependencies = [
 [[package]]
 name = "tantivy-common"
 version = "0.7.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "async-trait",
  "byteorder",
@@ -9253,7 +9254,7 @@ dependencies = [
 [[package]]
 name = "tantivy-query-grammar"
 version = "0.22.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "nom",
 ]
@@ -9261,7 +9262,7 @@ dependencies = [
 [[package]]
 name = "tantivy-sstable"
 version = "0.3.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "futures-util",
  "itertools 0.14.0",
@@ -9274,7 +9275,7 @@ dependencies = [
 [[package]]
 name = "tantivy-stacker"
 version = "0.3.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "murmurhash32",
  "rand_distr",
@@ -9284,7 +9285,7 @@ dependencies = [
 [[package]]
 name = "tantivy-tokenizer-api"
 version = "0.3.0"
-source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=8cbeefea#8cbeefead59eecdba8947f582f7b9de49dbfec8e"
+source = "git+ssh://git@github.com/vegasecurity/tantivy.git?rev=7356663c#7356663c01c7860ead941a71431a7bc36a9088e3"
 dependencies = [
  "serde",
 ]
