@@ -32,10 +32,7 @@ use quickwit_common::pubsub::EventBroker;
 use quickwit_common::runtimes::RuntimesConfig;
 use quickwit_common::uri::Uri;
 use quickwit_config::service::QuickwitService;
-use quickwit_config::{
-    IndexerConfig, NodeConfig, SourceConfig, SourceInputFormat, SourceParams, TransformConfig,
-    VecSourceParams, CLI_SOURCE_ID,
-};
+use quickwit_config::{IndexerConfig, NodeConfig, SourceConfig, SourceInputFormat, SourceParams, StorageCredentials, TransformConfig, VecSourceParams, CLI_SOURCE_ID};
 use quickwit_index_management::{clear_cache_directory, IndexService};
 use quickwit_indexing::actors::{IndexingService, MergePipeline, MergeSchedulerService};
 use quickwit_indexing::models::{
@@ -793,7 +790,7 @@ async fn extract_split_file_cli(args: ExtractSplitFileArgs) -> anyhow::Result<()
     println!("❯ Extracting split file...");
 
     let index_storage = StorageResolver::unconfigured()
-        .resolve(&Uri::for_test("./"))
+        .resolve(&Uri::for_test("./"), &StorageCredentials::default())
         .await?;
     let split_data = OwnedBytes::new(tokio::fs::read(&args.file).await?);
     let (_hotcache_bytes, bundle_storage) =
