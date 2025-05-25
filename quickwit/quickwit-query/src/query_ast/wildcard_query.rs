@@ -41,6 +41,9 @@ pub struct WildcardQuery {
 
     #[serde(default)]
     pub case_insensitive: bool,
+
+    #[serde(default)]
+    pub must_start: bool,
 }
 
 impl From<WildcardQuery> for QueryAst {
@@ -180,6 +183,7 @@ impl WildcardQuery {
             slop: 0,
             tokenizer: None,
             case_insensitive: false,
+            must_start: false,
         }
     }
 
@@ -318,6 +322,7 @@ impl BuildTantivyAst for WildcardQuery {
                 let regex_query_with_path = AutomatonQuery {
                     field,
                     automaton: Arc::new(regex_automaton_with_path),
+                    must_start: self.must_start,
                 };
                 Ok(regex_query_with_path.into())
             }
@@ -327,8 +332,9 @@ impl BuildTantivyAst for WildcardQuery {
                         "wildcard term is empty".to_string(),
                     ));
                 }
-                let regex_query_with_path =
+                let mut regex_query_with_path =
                     RegexPhraseQuery::new_with_term_offset_and_slop(field, terms, self.slop);
+                regex_query_with_path.set_must_start(self.must_start);
                 Ok(regex_query_with_path.into())
             }
         }

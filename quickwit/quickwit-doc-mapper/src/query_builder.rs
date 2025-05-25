@@ -335,7 +335,11 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
 
         match regex_terms {
             RegexTerms::One(path, term_text) => {
-                self.add_automaton(field, Automaton::Regex(path, term_text), false);
+                self.add_automaton(
+                    field,
+                    Automaton::Regex(path, term_text),
+                    wildcard_query.must_start,
+                );
             }
             RegexTerms::Many(terms) => {
                 for (_, term) in terms {
