@@ -392,12 +392,7 @@ mod tests {
         };
         assert_term_eq_str(
             terms,
-            vec![
-                "MyString",
-                "Wh1ch.a\\.nOrMal",
-                "Tokenizer",
-                "would.*cut",
-            ],
+            vec!["MyString", "Wh1ch.a\\.nOrMal", "Tokenizer", "would.*cut"],
         );
     }
 
@@ -424,12 +419,7 @@ mod tests {
         };
         assert_term_eq_json(
             terms,
-            vec![
-                "MyString",
-                "Wh1ch.a\\.nOrMal",
-                "Tokenizer",
-                "would.*cut",
-            ],
+            vec!["MyString", "Wh1ch.a\\.nOrMal", "Tokenizer", "would.*cut"],
         );
     }
 
