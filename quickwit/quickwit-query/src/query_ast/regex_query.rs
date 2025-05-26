@@ -117,6 +117,7 @@ impl BuildTantivyAst for RegexQuery {
         let regex_query_with_path = AutomatonQuery {
             field,
             automaton: Arc::new(regex_automaton_with_path),
+            must_start: false,
         };
         Ok(regex_query_with_path.into())
     }
@@ -216,6 +217,7 @@ mod prefix {
     pub struct AutomatonQuery<A> {
         pub automaton: Arc<A>,
         pub field: Field,
+        pub must_start: bool,
     }
 
     impl<A> std::fmt::Debug for AutomatonQuery<A> {
@@ -232,6 +234,7 @@ mod prefix {
             AutomatonQuery {
                 automaton: self.automaton.clone(),
                 field: self.field,
+                must_start: self.must_start,
             }
         }
     }
@@ -240,10 +243,9 @@ mod prefix {
     where A::State: Clone
     {
         fn weight(&self, _enabled_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
-            Ok(Box::new(AutomatonWeight::<A>::new(
-                self.field,
-                self.automaton.clone(),
-            )))
+            let mut weight = AutomatonWeight::<A>::new(self.field, self.automaton.clone());
+            weight.set_must_start(self.must_start);
+            Ok(Box::new(weight))
         }
     }
 }
