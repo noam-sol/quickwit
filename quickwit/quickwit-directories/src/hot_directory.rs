@@ -526,6 +526,7 @@ pub fn write_hotcache<D: Directory>(
                 let file_path_str = file_path.to_string_lossy();
                 if file_path_str.ends_with("store")
                     || file_path_str.ends_with("term")
+                    || file_path_str.ends_with("revterm")
                     || len < 10_000_000
                 {
                     let bytes = file_slice.read_bytes_slice(byte_range.clone())?;
