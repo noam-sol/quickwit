@@ -103,6 +103,7 @@ fn sub_query_parts_to_regex_tokens(
     let mut tokenizer = tokenizer_manager
         .get_tokenizer(tokenizer_name)
         .with_context(|| format!("no tokenizer named `{tokenizer_name}` is registered"))?;
+    let lowercaser = tokenizer_manager.is_lowercaser(tokenizer_name);
 
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -111,6 +112,12 @@ fn sub_query_parts_to_regex_tokens(
     for part in sub_query_parts {
         match part {
             SubQuery::Text(text) => {
+                let text_to_match = if lowercaser {
+                    text.to_ascii_lowercase()
+                } else {
+                    text.clone()
+                };
+
                 let mut token_stream = tokenizer.token_stream(&text);
                 token_stream.process(&mut |token| {
                     if (!text.starts_with(&token.text) && matches!(last, LastToken::Regex))
@@ -119,7 +126,7 @@ fn sub_query_parts_to_regex_tokens(
                         tokens.push(std::mem::take(&mut current));
                     }
 
-                    last = if text.ends_with(&token.text) {
+                    last = if text_to_match.ends_with(&token.text) {
                         LastToken::None
                     } else {
                         LastToken::Text
@@ -322,7 +329,6 @@ impl BuildTantivyAst for WildcardQuery {
                 let regex_query_with_path = AutomatonQuery {
                     field,
                     automaton: Arc::new(regex_automaton_with_path),
-                    must_start: self.must_start,
                 };
                 Ok(regex_query_with_path.into())
             }
@@ -474,6 +480,23 @@ mod tests {
         let parts = parse_wildcard_query("ha* t* *o ?it*");
         let tokens =
             sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, true)?;
+        assert_eq!(
+            tokens,
+            vec![
+                "[hH][aA].*".to_string(),
+                "[tT].*".to_string(),
+                ".*[oO]".to_string(),
+                ".[iI][tT].*".to_string()
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_complex_wildcard_case_insensitive_lowercaser() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("ha* t* *o ?it*");
+        let tokens = sub_query_parts_to_regex_tokens(parts, "default", &tokenizer_manager, true)?;
         assert_eq!(
             tokens,
             vec![
