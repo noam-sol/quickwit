@@ -70,6 +70,15 @@ impl TokenizerManager {
             .insert(tokenizer_name.to_string(), does_lowercasing);
     }
 
+    pub fn is_lowercaser(&self, tokenizer_name: &str) -> bool {
+        self.is_lowercaser
+            .read()
+            .unwrap()
+            .get(tokenizer_name)
+            .copied()
+            .unwrap_or(false)
+    }
+
     /// Accessing a tokenizer given its name.
     pub fn get_tokenizer(&self, tokenizer_name: &str) -> Option<TextAnalyzer> {
         self.inner.get(tokenizer_name)
