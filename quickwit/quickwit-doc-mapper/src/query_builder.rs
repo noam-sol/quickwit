@@ -334,15 +334,15 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
             };
 
         match regex_terms {
-            RegexTerms::One(path, term_text) => {
+            RegexTerms::One(path, term_text, reverse) => {
                 self.add_automaton(
                     field,
-                    Automaton::Regex(path, term_text),
+                    Automaton::Regex(path, term_text, reverse),
                     wildcard_query.must_start,
                 );
             }
             RegexTerms::Many(terms) => {
-                for (_, term) in terms {
+                for (_, term, reverse) in terms {
                     let term_value = term.value();
                     let term_text = match term_value.typ() {
                         Type::Json => std::str::from_utf8(term.serialized_value_bytes())
@@ -356,7 +356,11 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
                             ));
                         }
                     };
-                    self.add_automaton(field, Automaton::Regex(None, term_text.to_string()), true);
+                    self.add_automaton(
+                        field,
+                        Automaton::Regex(None, term_text.to_string(), reverse),
+                        true,
+                    );
                 }
             }
         }
@@ -371,7 +375,7 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
             Err(InvalidQuery::FieldDoesNotExist { .. }) => return Ok(()),
             Err(e) => return Err(e),
         };
-        self.add_automaton(field, Automaton::Regex(path, regex), false);
+        self.add_automaton(field, Automaton::Regex(path, regex, false), false);
         Ok(())
     }
 }

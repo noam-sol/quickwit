@@ -94,20 +94,59 @@ enum LastToken {
     Regex,
 }
 
+fn score_to_reverse(score: &[usize], token_parts: &[SubQuery]) -> bool {
+    if score.is_empty() {
+        // No wildcard, simply use non reversed.
+        return false;
+    }
+    if score.len() == 1 {
+        return !matches!(token_parts.first(), Some(SubQuery::Text(_)));
+    }
+    score.first().unwrap() < score.last().unwrap()
+}
+
+fn push_token(
+    tokens: &mut Vec<(String, bool)>,
+    score: &mut Vec<usize>,
+    mut token_parts: Vec<SubQuery>,
+) {
+    let reverse = score_to_reverse(score, &token_parts);
+    score.clear();
+
+    if reverse {
+        token_parts = token_parts.into_iter().rev().collect();
+    }
+
+    let mut token = String::new();
+    for part in token_parts {
+        match part {
+            SubQuery::Text(text) if reverse => {
+                token.push_str(&text.chars().rev().collect::<String>())
+            }
+            SubQuery::Text(text) => token.push_str(&text),
+            SubQuery::Wildcard => token.push_str(".*"),
+            SubQuery::QuestionMark => token.push('.'),
+        }
+    }
+
+    tokens.push((token, reverse));
+}
+
 fn sub_query_parts_to_regex_tokens(
     sub_query_parts: Vec<SubQuery>,
     tokenizer_name: &str,
     tokenizer_manager: &TokenizerManager,
     case_insensitive: bool,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<Vec<(String, bool)>> {
     let mut tokenizer = tokenizer_manager
         .get_tokenizer(tokenizer_name)
         .with_context(|| format!("no tokenizer named `{tokenizer_name}` is registered"))?;
     let lowercaser = tokenizer_manager.is_lowercaser(tokenizer_name);
 
     let mut tokens = Vec::new();
-    let mut current = String::new();
+    let mut current = Vec::new();
     let mut last = LastToken::None;
+    let mut current_score = Vec::new();
 
     for part in sub_query_parts {
         match part {
@@ -123,8 +162,14 @@ fn sub_query_parts_to_regex_tokens(
                     if (!text.starts_with(&token.text) && matches!(last, LastToken::Regex))
                         || matches!(last, LastToken::Text)
                     {
-                        tokens.push(std::mem::take(&mut current));
+                        push_token(
+                            &mut tokens,
+                            &mut current_score,
+                            std::mem::take(&mut current),
+                        );
                     }
+
+                    current_score.push(token.text.len());
 
                     last = if text_to_match.ends_with(&token.text) {
                         LastToken::None
@@ -151,25 +196,27 @@ fn sub_query_parts_to_regex_tokens(
                         escaped = s;
                     }
 
-                    current.push_str(&escaped);
+                    current.push(SubQuery::Text(escaped));
                 });
             }
             SubQuery::Wildcard | SubQuery::QuestionMark => {
                 if !matches!(last, LastToken::None) {
-                    tokens.push(std::mem::take(&mut current));
+                    push_token(
+                        &mut tokens,
+                        &mut current_score,
+                        std::mem::take(&mut current),
+                    );
+                    current_score.push(0);
                 }
+
                 last = LastToken::Regex;
-                current.push_str(if matches!(part, SubQuery::Wildcard) {
-                    ".*"
-                } else {
-                    "."
-                });
+                current.push(part);
             }
         }
     }
 
     if !current.is_empty() {
-        tokens.push(current);
+        push_token(&mut tokens, &mut current_score, current);
     }
 
     Ok(tokens)
@@ -177,8 +224,8 @@ fn sub_query_parts_to_regex_tokens(
 
 #[derive(Debug)]
 pub enum RegexTerms {
-    One(Option<Vec<u8>>, String),
-    Many(Vec<(usize, Term)>),
+    One(Option<Vec<u8>>, String, bool),
+    Many(Vec<(usize, Term, bool)>),
 }
 
 impl WildcardQuery {
@@ -229,13 +276,16 @@ impl WildcardQuery {
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
-                    RegexTerms::One(None, tokens.into_iter().next().unwrap())
+                    let (term, reverse) = tokens.into_iter().next().unwrap();
+                    RegexTerms::One(None, term, reverse)
                 } else {
                     RegexTerms::Many(
                         tokens
                             .into_iter()
                             .enumerate()
-                            .map(|(offset, term)| (offset, Term::from_field_text(field, &term)))
+                            .map(|(offset, (term, reverse))| {
+                                (offset, Term::from_field_text(field, &term), reverse)
+                            })
                             .collect(),
                     )
                 };
@@ -274,20 +324,21 @@ impl WildcardQuery {
                     // present in the dictionary
                     let byte_path_prefix = value.as_serialized()[1..].to_owned();
 
-                    RegexTerms::One(Some(byte_path_prefix), tokens.into_iter().next().unwrap())
+                    let (term, reverse) = tokens.into_iter().next().unwrap();
+                    RegexTerms::One(Some(byte_path_prefix), term, reverse)
                 } else {
                     RegexTerms::Many(
                         tokens
                             .into_iter()
                             .enumerate()
-                            .map(|(offset, token)| {
+                            .map(|(offset, (token, reverse))| {
                                 let mut term = Term::from_field_json_path(
                                     field,
                                     json_path,
                                     json_options.is_expand_dots_enabled(),
                                 );
                                 term.append_type_and_str(&token);
-                                (offset, term)
+                                (offset, term, reverse)
                             })
                             .collect(),
                     )
@@ -319,7 +370,7 @@ impl BuildTantivyAst for WildcardQuery {
         };
 
         match regex_terms {
-            RegexTerms::One(json_path, term_text) => {
+            RegexTerms::One(json_path, term_text, reverse) => {
                 let regex = tantivy_fst::Regex::new(&term_text)
                     .context("failed to parse regex built from wildcard")?;
                 let regex_automaton_with_path = JsonPathPrefix {
@@ -329,6 +380,8 @@ impl BuildTantivyAst for WildcardQuery {
                 let regex_query_with_path = AutomatonQuery {
                     field,
                     automaton: Arc::new(regex_automaton_with_path),
+                    must_start: self.must_start,
+                    reverse,
                 };
                 Ok(regex_query_with_path.into())
             }
@@ -339,7 +392,9 @@ impl BuildTantivyAst for WildcardQuery {
                     ));
                 }
                 let mut regex_query_with_path =
-                    RegexPhraseQuery::new_with_term_offset_and_slop(field, terms, self.slop);
+                    RegexPhraseQuery::new_with_term_offset_slop_and_reverse(
+                        field, terms, self.slop,
+                    );
                 regex_query_with_path.set_must_start(self.must_start);
                 Ok(regex_query_with_path.into())
             }
@@ -362,20 +417,22 @@ mod tests {
         schema_builder.build()
     }
 
-    fn assert_term_eq_str(terms: Vec<(usize, Term)>, expected: Vec<&str>) {
+    fn assert_term_eq_str(terms: Vec<(usize, Term, bool)>, expected: Vec<&str>) {
         assert_eq!(terms.len(), expected.len());
 
         for (i, ex) in expected.into_iter().enumerate() {
             assert_eq!(terms[i].0, i);
             assert_eq!(terms[i].1.value().as_str(), Some(ex));
+            assert!(!terms[i].2);
         }
     }
 
-    fn assert_term_eq_json(terms: Vec<(usize, Term)>, expected: Vec<&str>) {
+    fn assert_term_eq_json(terms: Vec<(usize, Term, bool)>, expected: Vec<&str>) {
         assert_eq!(terms.len(), expected.len());
 
-        for (i, ((offset, term), ex)) in terms.into_iter().zip(expected).enumerate() {
+        for (i, ((offset, term, reverse), ex)) in terms.into_iter().zip(expected).enumerate() {
             assert_eq!(offset, i);
+            assert!(!reverse);
 
             let text = std::str::from_utf8(term.serialized_value_bytes())
                 .expect("failed to get json text");
@@ -465,10 +522,10 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                "ha.*".to_string(),
-                "t.*".to_string(),
-                ".*o".to_string(),
-                ".it.*".to_string()
+                ("ha.*".to_string(), false),
+                ("t.*".to_string(), false),
+                (".*o".to_string(), false),
+                (".it.*".to_string(), false),
             ]
         );
         Ok(())
@@ -483,10 +540,10 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                "[hH][aA].*".to_string(),
-                "[tT].*".to_string(),
-                ".*[oO]".to_string(),
-                ".[iI][tT].*".to_string()
+                ("[hH][aA].*".to_string(), false),
+                ("[tT].*".to_string(), false),
+                (".*[oO]".to_string(), false),
+                (".[iI][tT].*".to_string(), false),
             ]
         );
         Ok(())

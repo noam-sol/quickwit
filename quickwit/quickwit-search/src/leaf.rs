@@ -386,7 +386,7 @@ async fn warm_up_automatons(
                 let inv_idx_clone = inv_idx.clone();
                 warm_up_futures.push(async move {
                     match automaton {
-                        Automaton::Regex(path, regex_str) => {
+                        Automaton::Regex(path, regex_str, reverse) => {
                             let regex = tantivy_fst::Regex::new(regex_str)
                                 .context("failed to parse regex during warmup")?;
                             inv_idx_clone
@@ -396,6 +396,7 @@ async fn warm_up_automatons(
                                         prefix: path.clone().unwrap_or_default(),
                                     },
                                     *positions_needed,
+                                    *reverse,
                                     cpu_intensive_executor,
                                 )
                                 .await

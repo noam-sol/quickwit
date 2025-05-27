@@ -85,7 +85,7 @@ pub struct TermRange {
 pub enum Automaton {
     /// A regex in it's str representation as tantivy_fst::Regex isn't PartialEq, and the path if
     /// inside a json field
-    Regex(Option<Vec<u8>>, String),
+    Regex(Option<Vec<u8>>, String, /* reverse= */ bool),
     // we could add termset query here, instead of downloading the whole dictionary
 }
 
@@ -613,7 +613,7 @@ mod tests {
     fn automaton_hashmap_no_pos(elements: &[&str]) -> HashMap<Automaton, bool> {
         elements
             .iter()
-            .map(|elem| (Automaton::Regex(None, elem.to_string()), false))
+            .map(|elem| (Automaton::Regex(None, elem.to_string(), false), false))
             .collect()
     }
 
@@ -751,7 +751,7 @@ mod tests {
         let expected_automatons = [(1, "my_reg.*ex"), (1, "other-re.ex"), (2, "my_reg.*ex")];
         for (field, regex) in expected_automatons {
             let field = Field::from_field_id(field);
-            let automaton = Automaton::Regex(None, regex.to_string());
+            let automaton = Automaton::Regex(None, regex.to_string(), false);
             assert!(wi_base
                 .automatons_grouped_by_field
                 .get(&field)
