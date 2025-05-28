@@ -18,6 +18,7 @@ use std::convert::TryFrom;
 use anyhow::bail;
 use base64::prelude::{Engine, BASE64_STANDARD};
 use once_cell::sync::Lazy;
+use quickwit_common::is_false;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -310,6 +311,7 @@ pub struct TextIndexingOptions {
     pub tokenizer: QuickwitTextTokenizer,
     pub record: IndexRecordOption,
     pub fieldnorms: bool,
+    pub suffix: bool,
 }
 
 impl TextIndexingOptions {
@@ -318,12 +320,14 @@ impl TextIndexingOptions {
         tokenizer: Option<QuickwitTextTokenizer>,
         record: Option<IndexRecordOption>,
         fieldnorms: bool,
+        suffix: bool,
     ) -> anyhow::Result<Option<Self>> {
         if indexed {
             Ok(Some(TextIndexingOptions {
                 tokenizer: tokenizer.unwrap_or_default(),
                 record: record.unwrap_or(IndexRecordOption::Basic),
                 fieldnorms,
+                suffix,
             }))
         } else {
             if tokenizer.is_some() || record.is_some() || fieldnorms {
@@ -340,12 +344,14 @@ impl TextIndexingOptions {
         indexed: bool,
         tokenizer: Option<QuickwitTextTokenizer>,
         record: Option<IndexRecordOption>,
+        suffix: bool,
     ) -> anyhow::Result<Option<Self>> {
         if indexed {
             Ok(Some(TextIndexingOptions {
                 tokenizer: tokenizer.unwrap_or_else(QuickwitTextTokenizer::raw),
                 record: record.unwrap_or(IndexRecordOption::Basic),
                 fieldnorms: false,
+                suffix,
             }))
         } else {
             if tokenizer.is_some() || record.is_some() {
@@ -358,8 +364,9 @@ impl TextIndexingOptions {
     fn from_parts_concatenate(
         tokenizer: Option<QuickwitTextTokenizer>,
         record: Option<IndexRecordOption>,
+        suffix: bool,
     ) -> anyhow::Result<Self> {
-        let text_index_options_opt = Self::from_parts_text(true, tokenizer, record, false)?;
+        let text_index_options_opt = Self::from_parts_text(true, tokenizer, record, false, suffix)?;
         let text_index_options = text_index_options_opt.expect("concatenate field must be indexed");
         Ok(text_index_options)
     }
@@ -371,6 +378,7 @@ impl TextIndexingOptions {
         Option<QuickwitTextTokenizer>,
         Option<IndexRecordOption>,
         bool, // fieldnorms
+        bool, // suffix
     ) {
         match this {
             Some(this) => (
@@ -378,8 +386,9 @@ impl TextIndexingOptions {
                 Some(this.tokenizer),
                 Some(this.record),
                 this.fieldnorms,
+                this.suffix,
             ),
-            None => (false, None, None, false),
+            None => (false, None, None, false, false),
         }
     }
 
@@ -389,17 +398,23 @@ impl TextIndexingOptions {
         bool, // indexed
         Option<QuickwitTextTokenizer>,
         Option<IndexRecordOption>,
+        bool, // suffix
     ) {
-        let (indexed, tokenizer, record, _fieldorm) = TextIndexingOptions::to_parts_text(this);
-        (indexed, tokenizer, record)
+        let (indexed, tokenizer, record, _fieldorm, suffix) =
+            TextIndexingOptions::to_parts_text(this);
+        (indexed, tokenizer, record, suffix)
     }
 
     fn to_parts_concatenate(
         this: Self,
-    ) -> (Option<QuickwitTextTokenizer>, Option<IndexRecordOption>) {
-        let (_indexed, tokenizer, record, _fieldorm) =
+    ) -> (
+        Option<QuickwitTextTokenizer>,
+        Option<IndexRecordOption>,
+        bool, // suffix
+    ) {
+        let (_indexed, tokenizer, record, _fieldorm, suffix) =
             TextIndexingOptions::to_parts_text(Some(this));
-        (tokenizer, record)
+        (tokenizer, record, suffix)
     }
 
     fn default_json() -> Self {
@@ -407,6 +422,7 @@ impl TextIndexingOptions {
             tokenizer: QuickwitTextTokenizer::raw(),
             record: IndexRecordOption::Basic,
             fieldnorms: false,
+            suffix: false,
         }
     }
 }
@@ -417,6 +433,7 @@ impl Default for TextIndexingOptions {
             tokenizer: QuickwitTextTokenizer::default(),
             record: IndexRecordOption::Basic,
             fieldnorms: false,
+            suffix: false,
         }
     }
 }
@@ -444,6 +461,9 @@ pub struct QuickwitTextOptions {
             pub record: Option<IndexRecordOption>,
             #[serde(default)]
             pub fieldnorms: bool,
+            #[serde(default)]
+            #[serde(skip_serializing_if = "is_false")]
+            pub suffix: bool,
         ),
     )]
     pub indexing_options: Option<TextIndexingOptions>,
@@ -592,6 +612,11 @@ pub struct QuickwitJsonOptions {
             #[serde(default)]
             #[serde(skip_serializing_if = "Option::is_none")]
             pub record: Option<IndexRecordOption>,
+            /// Also store strings reversed (in .revterm file) for faster suffix searches.
+            /// The .revterm file is ~2x times larger than the .term file.
+            #[serde(default)]
+            #[serde(skip_serializing_if = "is_false")]
+            pub suffix: bool,
         ),
     )]
     /// Options for indexing text in a Json field.
@@ -638,7 +663,8 @@ impl From<QuickwitJsonOptions> for JsonObjectOptions {
         if let Some(indexing_options) = quickwit_json_options.indexing_options {
             let text_field_indexing = TextFieldIndexing::default()
                 .set_tokenizer(indexing_options.tokenizer.name())
-                .set_index_option(indexing_options.record);
+                .set_index_option(indexing_options.record)
+                .set_suffix(indexing_options.suffix);
             json_options = json_options.set_indexing_options(text_field_indexing);
         }
         if quickwit_json_options.expand_dots {
@@ -683,6 +709,11 @@ pub struct QuickwitConcatenateOptions {
             #[serde(default)]
             #[serde(skip_serializing_if = "Option::is_none")]
             pub record: Option<IndexRecordOption>,
+            /// Also store strings reversed (in .revterm file) for faster suffix searches.
+            /// The .revterm file is ~2x times larger than the .term file.
+            #[serde(default)]
+            #[serde(skip_serializing_if = "is_false")]
+            pub suffix: bool,
         ),
     )]
     /// Options for indexing text in a concatenate field.
@@ -699,6 +730,7 @@ impl Default for QuickwitConcatenateOptions {
                 tokenizer: QuickwitTextTokenizer::default(),
                 record: IndexRecordOption::Basic,
                 fieldnorms: false,
+                suffix: false,
             },
         }
     }
@@ -710,7 +742,8 @@ impl From<QuickwitConcatenateOptions> for JsonObjectOptions {
         let text_field_indexing = TextFieldIndexing::default()
             .set_index_option(quickwit_text_options.indexing_options.record)
             .set_fieldnorms(quickwit_text_options.indexing_options.fieldnorms)
-            .set_tokenizer(quickwit_text_options.indexing_options.tokenizer.name());
+            .set_tokenizer(quickwit_text_options.indexing_options.tokenizer.name())
+            .set_suffix(quickwit_text_options.indexing_options.suffix);
 
         text_options = text_options.set_indexing_options(text_field_indexing);
         text_options

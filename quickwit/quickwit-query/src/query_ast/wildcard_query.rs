@@ -109,8 +109,14 @@ fn push_token(
     tokens: &mut Vec<(String, bool)>,
     score: &mut Vec<usize>,
     mut token_parts: Vec<SubQuery>,
+    suffix: bool,
 ) {
-    let reverse = score_to_reverse(score, &token_parts);
+    let reverse = if suffix {
+        score_to_reverse(score, &token_parts)
+    } else {
+        false
+    };
+
     score.clear();
 
     if reverse {
@@ -137,6 +143,7 @@ fn sub_query_parts_to_regex_tokens(
     tokenizer_name: &str,
     tokenizer_manager: &TokenizerManager,
     case_insensitive: bool,
+    suffix: bool,
 ) -> anyhow::Result<Vec<(String, bool)>> {
     let mut tokenizer = tokenizer_manager
         .get_tokenizer(tokenizer_name)
@@ -166,6 +173,7 @@ fn sub_query_parts_to_regex_tokens(
                             &mut tokens,
                             &mut current_score,
                             std::mem::take(&mut current),
+                            suffix,
                         );
                     }
 
@@ -205,6 +213,7 @@ fn sub_query_parts_to_regex_tokens(
                         &mut tokens,
                         &mut current_score,
                         std::mem::take(&mut current),
+                        suffix,
                     );
                     current_score.push(0);
                 }
@@ -216,7 +225,7 @@ fn sub_query_parts_to_regex_tokens(
     }
 
     if !current.is_empty() {
-        push_token(&mut tokens, &mut current_score, current);
+        push_token(&mut tokens, &mut current_score, current, suffix);
     }
 
     Ok(tokens)
@@ -273,6 +282,7 @@ impl WildcardQuery {
                     tokenizer_name,
                     tokenizer_manager,
                     self.case_insensitive,
+                    false,
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
@@ -309,6 +319,7 @@ impl WildcardQuery {
                     tokenizer_name,
                     tokenizer_manager,
                     self.case_insensitive,
+                    text_field_indexing.suffix(),
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
@@ -518,7 +529,7 @@ mod tests {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
         let tokens =
-            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false)?;
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
         assert_eq!(
             tokens,
             vec![
@@ -536,7 +547,7 @@ mod tests {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
         let tokens =
-            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, true)?;
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, true, false)?;
         assert_eq!(
             tokens,
             vec![
@@ -553,14 +564,33 @@ mod tests {
     fn test_parse_complex_wildcard_case_insensitive_lowercaser() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
-        let tokens = sub_query_parts_to_regex_tokens(parts, "default", &tokenizer_manager, true)?;
+        let tokens =
+            sub_query_parts_to_regex_tokens(parts, "default", &tokenizer_manager, true, false)?;
         assert_eq!(
             tokens,
             vec![
-                "[hH][aA].*".to_string(),
-                "[tT].*".to_string(),
-                ".*[oO]".to_string(),
-                ".[iI][tT].*".to_string()
+                ("[hH][aA].*".to_string(), false),
+                ("[tT].*".to_string(), false),
+                (".*[oO]".to_string(), false),
+                (".[iI][tT].*".to_string(), false),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_complex_wildcard_suffix() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("ha* t* *o ?ito");
+        let tokens =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, true)?;
+        assert_eq!(
+            tokens,
+            vec![
+                ("ha.*".to_string(), false),
+                ("t.*".to_string(), false),
+                ("o.*".to_string(), true),
+                ("oti.".to_string(), true),
             ]
         );
         Ok(())

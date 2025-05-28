@@ -847,6 +847,7 @@ mod tests {
                             tokenizer: QuickwitTextTokenizer::from_static("multilang"),
                             record: IndexRecordOption::Basic,
                             fieldnorms: false,
+                            suffix: false,
                         }),
                         ..Default::default()
                     },
