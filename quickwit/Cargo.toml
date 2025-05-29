@@ -334,7 +334,7 @@ quickwit-serve = { path = "quickwit-serve" }
 quickwit-storage = { path = "quickwit-storage" }
 quickwit-telemetry = { path = "quickwit-telemetry" }
 
-tantivy = { git = "ssh://git@github.com/vegasecurity/tantivy.git", rev = "4453ba04", default-features = false, features = [
+tantivy = { git = "ssh://git@github.com/vegasecurity/tantivy.git", rev = "15a18f691f68ce4e9aa91ed66cf4962f21005e1c", default-features = false, features = [
   "lz4-compression",
   "mmap",
   "quickwit",
