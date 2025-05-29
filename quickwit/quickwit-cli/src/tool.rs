@@ -32,7 +32,10 @@ use quickwit_common::pubsub::EventBroker;
 use quickwit_common::runtimes::RuntimesConfig;
 use quickwit_common::uri::Uri;
 use quickwit_config::service::QuickwitService;
-use quickwit_config::{IndexerConfig, NodeConfig, SourceConfig, SourceInputFormat, SourceParams, StorageCredentials, TransformConfig, VecSourceParams, CLI_SOURCE_ID};
+use quickwit_config::{
+    IndexerConfig, NodeConfig, SourceConfig, SourceInputFormat, SourceParams, StorageCredentials,
+    TransformConfig, VecSourceParams, CLI_SOURCE_ID,
+};
 use quickwit_index_management::{clear_cache_directory, IndexService};
 use quickwit_indexing::actors::{IndexingService, MergePipeline, MergeSchedulerService};
 use quickwit_indexing::models::{
