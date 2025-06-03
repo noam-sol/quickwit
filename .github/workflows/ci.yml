@@ -26,7 +26,8 @@ concurrency:
 jobs:
   tests:
     name: Unit tests
-    runs-on: "ubuntu-latest"
+    runs-on:
+      labels: Strong-1
     timeout-minutes: 40
     services:
       # PostgreSQL service container
@@ -103,7 +104,8 @@ jobs:
 
   lints:
     name: Lints
-    runs-on: "ubuntu-latest"
+    runs-on:
+      labels: Strong-1
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
