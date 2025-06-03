@@ -27,7 +27,8 @@ permissions:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: Strong-1
 
     steps:
       - name: Set up ssh key for tantivy fork
