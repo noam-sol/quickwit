@@ -1,23 +1,9 @@
 name: Build and publish Docker images
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Set docker image tag'
-        required: true
-        default: 'vega_edge'
-  # On push currently doesn't work, run manually.
-  # push:
-  #   branches:
-  #     - vega-main
-  #   paths:
-  #     - "quickwit/**"
-  #   tags:
-  #     - airmail
-  #     - happy-plazza
-  #     - qw*
-  #     - v*
+  push:
+    branches:
+      - vega-main
 env:
   REGISTRY_IMAGE: quickwit
 
@@ -93,7 +79,9 @@ jobs:
             QW_COMMIT_HASH=${{ env.QW_COMMIT_HASH }}
             QW_COMMIT_TAGS=${{ env.QW_COMMIT_TAGS }}
           labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:${{ github.event.inputs.tag }}
+          tags: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:main-${{ github.sha }}
+            ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:vega_edge
           cache-from: type=registry,ref=${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:cache
           cache-to: type=registry,ref=${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:cache,mode=max,image-manifest=true,oci-mediatypes=true,compression=estargz,compression-level=9
 
