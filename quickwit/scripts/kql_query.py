@@ -41,16 +41,14 @@ QUERY_TEMPLATE = {
             }
         },
     )[1],
-    "contains_cs_slow": lambda field, value: (
-        {
-            "wildcard_phrase": {
-                field: {
-                    "query": f"*{escape_wildcard_query(value)}*",
-                    "case_insensitive": False,
-                }
+    "contains_cs_slow": lambda field, value: {
+        "wildcard_phrase": {
+            field: {
+                "query": f"*{escape_wildcard_query(value)}*",
+                "case_insensitive": False,
             }
-        },
-    ),
+        }
+    },
     "startswith_cs": lambda field, value: {
         "match_phrase_prefix": {field: {"query": value, "must_start": True}},
     },
