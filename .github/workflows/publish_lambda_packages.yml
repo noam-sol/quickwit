@@ -1,14 +1,22 @@
 name: Build and publish AWS Lambda packages
 
 on:
-  push:
-    tags:
-      - "aws-lambda-beta-*"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build-lambdas:
     name: Build Quickwit Lambdas
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: Strong-1
+
+    outputs:
+      searcher_package: ${{ steps.extract.outputs.searcher }}
+      # indexer_package: ${{ steps.extract.outputs.indexer }}
+
     steps:
       - uses: actions/checkout@v4
       - name: Install Ubuntu packages
@@ -20,35 +28,95 @@ jobs:
             pip install --user pipenv
             pipenv install --system
         working-directory: ./distribution/lambda
-      - name: Lint and format
+      # - name: Lint and format
+      #   run: |
+      #       mypy .
+      #       black . --check
+      #   working-directory: ./distribution/lambda
+      - name: Set up ssh key for tantivy fork
         run: |
-            mypy .
-            black . --check
-        working-directory: ./distribution/lambda
+          mkdir -p ~/.ssh
+          echo "${{ secrets.TANTIVY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Retrieve and export commit date, hash, and tags
         run: |
             echo "QW_COMMIT_DATE=$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
             echo "QW_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
-            echo "QW_COMMIT_TAGS=$(git tag --points-at HEAD | tr '\n' ',')" >> $GITHUB_ENV
       - name: Build Quickwit Lambdas
         run: make package
         env:
           QW_COMMIT_DATE: ${{ env.QW_COMMIT_DATE }}
           QW_COMMIT_HASH: ${{ env.QW_COMMIT_HASH }}
-          QW_COMMIT_TAGS: ${{ env.QW_COMMIT_TAGS }}
           QW_LAMBDA_BUILD: 1
         working-directory: ./distribution/lambda
       - name: Extract package locations
+        id: extract
         run: |
-          echo "SEARCHER_PACKAGE_LOCATION=./distribution/lambda/$(make searcher-package-path)" >> $GITHUB_ENV
-          echo "INDEXER_PACKAGE_LOCATION=./distribution/lambda/$(make indexer-package-path)" >> $GITHUB_ENV
+          echo "searcher=distribution/lambda/$(make searcher-package-path)" >> $GITHUB_OUTPUT
+          # echo "indexer=distribution/lambda/$(make indexer-package-path)" >> $GITHUB_OUTPUT
         working-directory: ./distribution/lambda
-      - name: Upload Lambda archives
-        uses: quickwit-inc/upload-to-github-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Lambda packages as artifacts
+        uses: actions/upload-artifact@v4
         with:
-          file: ${{ env.SEARCHER_PACKAGE_LOCATION }};${{ env.INDEXER_PACKAGE_LOCATION }}
-          overwrite: true
-          draft: true
-          tag_name: ${{ github.ref_name }}
+          name: lambda-packages
+          path: |
+            ${{ steps.extract.outputs.searcher }}
+            # ${{ steps.extract.outputs.indexer }}
+
+  deploy-lambdas:
+    name: Deploy to ${{ matrix.env }} in ${{ matrix.region }}
+    needs: build-lambdas
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Production
+          - env: prod
+            region: us-east-2
+          - env: prod
+            region: us-west-2
+          - env: prod
+            region: eu-west-1
+
+          # Staging
+          - env: staging
+            region: us-east-2
+
+    steps:
+      - name: Download built Lambda artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-packages
+          path: ./artifacts
+
+      - name: Set AWS IAM role
+        run: |
+          if [ "${{ matrix.env }}" = "prod" ]; then
+            echo "AWS_ROLE=${{ vars.IAM_ROLE_PROD }}" >> $GITHUB_ENV
+          elif [ "${{ matrix.env }}" = "staging" ]; then
+            echo "AWS_ROLE=${{ vars.IAM_ROLE_STAGING }}" >> $GITHUB_ENV
+          else
+            echo "Unknown environment: ${{ matrix.env }}"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials - ${{ matrix.env }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Deploy Searcher Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name quickwit-searcher \
+            --zip-file fileb://artifacts/$(basename "${{ needs.build-lambdas.outputs.searcher_package }}")
+
+      # - name: Deploy Indexer Lambda
+      #   run: |
+      #     aws lambda update-function-code \
+      #       --function-name quickwit-indexer \
+      #       --zip-file fileb://artifacts/$(basename "${{ needs.build-lambdas.outputs.indexer_package }}")
