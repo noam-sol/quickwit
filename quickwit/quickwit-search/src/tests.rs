@@ -1050,6 +1050,7 @@ async fn test_search_util(test_sandbox: &TestSandbox, query: &str) -> Vec<u32> {
     let agg_limits = searcher_context.get_aggregation_limits();
 
     let search_response = leaf_search(
+        tokio_util::sync::CancellationToken::new(),
         searcher_context,
         request,
         test_sandbox.storage(),

@@ -43,6 +43,7 @@ use tantivy::fastfield::FastFieldReaders;
 use tantivy::schema::Field;
 use tantivy::{DateTime, Index, ReloadPolicy, Searcher, TantivyError, Term};
 use tokio::task::JoinError;
+use tokio_util::sync::CancellationToken;
 use tracing::*;
 
 use crate::collector::{make_collector_for_split, make_merge_collector, IncrementalCollector};
@@ -1230,6 +1231,16 @@ pub async fn multi_leaf_search(
     // per index, e.g. when to merge results and how to avoid lock contention.
     let mut leaf_request_tasks = Vec::new();
 
+    // Abort all the tokio tasks spawned for the leaf search on request timeout.
+    // We need to manually cancel + abort, because after dropping a JoinHandle, tokio's scheduler
+    // would have continued to execute the task to completion, kinda like detach in threading.
+    // Most valueable thing to be dropped on cancel is the SearchPermit given to leaf split
+    // searches, so we don't block other leaf searches from executing.
+    let cancel = CancellationToken::new();
+
+    // Calls cancel() on drop (RAII).
+    let _cancel_drop_guard = cancel.clone().drop_guard();
+
     for leaf_search_request_ref in leaf_search_request.leaf_requests.into_iter() {
         let index_storage_access_ord = leaf_search_request_ref.index_storage_access_ord as usize;
 
@@ -1262,6 +1273,7 @@ pub async fn multi_leaf_search(
 
         let leaf_request_future = tokio::spawn(
             resolve_storage_and_leaf_search(
+                cancel.child_token(),
                 searcher_context.clone(),
                 search_request.clone(),
                 index_uri,
@@ -1308,6 +1320,7 @@ pub async fn multi_leaf_search(
 /// Resolves storage and calls leaf_search
 #[allow(clippy::too_many_arguments)]
 async fn resolve_storage_and_leaf_search(
+    cancel: CancellationToken,
     searcher_context: Arc<SearcherContext>,
     search_request: Arc<SearchRequest>,
     index_uri: quickwit_common::uri::Uri,
@@ -1321,6 +1334,7 @@ async fn resolve_storage_and_leaf_search(
         .resolve(&index_uri, &storage_credentials)
         .await?;
     leaf_search(
+        cancel,
         searcher_context.clone(),
         search_request.clone(),
         storage.clone(),
@@ -1362,6 +1376,7 @@ fn disable_search_request_hits(search_request: &mut SearchRequest) {
 /// fetch the actual documents to convert the partial hits into actual Hits.
 #[instrument(skip_all, fields(index = ?request.index_id_patterns))]
 pub async fn leaf_search(
+    cancel: CancellationToken,
     searcher_context: Arc<SearcherContext>,
     request: Arc<SearchRequest>,
     index_storage: Arc<dyn Storage>,
@@ -1446,9 +1461,24 @@ pub async fn leaf_search(
     let mut split_search_join_errors: Vec<(String, JoinError)> = Vec::new();
 
     // There is no need to use `join_all`, as these are spawned tasks.
-    for (split, leaf_search_join_handle) in leaf_search_single_split_join_handles {
+    for (split, mut leaf_search_join_handle) in leaf_search_single_split_join_handles {
+        let Some(result) = cancel
+            .run_until_cancelled(&mut leaf_search_join_handle)
+            .await
+        else {
+            // Drops the future, meaning the SearchPermit (leaf_split_search_permit) will be
+            // dropped and released here.
+            // There is a good chance that we will stop immediately while doing the warmup, as it
+            // does both I/O (download from S3) and the search compute.
+            // If for some unfortunate reason the sync tantivy search is running, we must wait for
+            // it to complete before the future gets dropped.
+            // To fix this hermetically, we would need to make tantivy search async.
+            leaf_search_join_handle.abort();
+            continue;
+        };
+
         // splits that did not panic were already added to the collector
-        if let Err(join_error) = leaf_search_join_handle.await {
+        if let Err(join_error) = result {
             if join_error.is_cancelled() {
                 // An explicit task cancellation is not an error.
                 continue;
