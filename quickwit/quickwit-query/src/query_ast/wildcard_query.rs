@@ -110,6 +110,7 @@ fn push_token(
     score: &mut Vec<usize>,
     mut token_parts: Vec<SubQuery>,
     suffix: bool,
+    case_insensitive: bool,
 ) {
     let reverse = if suffix {
         score_to_reverse(score, &token_parts)
@@ -133,6 +134,10 @@ fn push_token(
             SubQuery::Wildcard => token.push_str(".*"),
             SubQuery::QuestionMark => token.push('.'),
         }
+    }
+
+    if case_insensitive {
+        token = format!("(?i){token}");
     }
 
     tokens.push((token, reverse));
@@ -174,6 +179,7 @@ fn sub_query_parts_to_regex_tokens(
                             &mut current_score,
                             std::mem::take(&mut current),
                             suffix,
+                            case_insensitive,
                         );
                     }
 
@@ -185,26 +191,7 @@ fn sub_query_parts_to_regex_tokens(
                         LastToken::Text
                     };
 
-                    let mut escaped = regex::escape(&token.text);
-
-                    if case_insensitive {
-                        let mut s = String::new();
-                        for chr in escaped.chars() {
-                            let lower = chr.to_ascii_lowercase();
-                            let upper = chr.to_ascii_uppercase();
-                            if lower == upper {
-                                s.push(chr);
-                            } else {
-                                s.push('[');
-                                s.push(lower);
-                                s.push(upper);
-                                s.push(']');
-                            }
-                        }
-                        escaped = s;
-                    }
-
-                    current.push(SubQuery::Text(escaped));
+                    current.push(SubQuery::Text(regex::escape(&token.text)));
                 });
             }
             SubQuery::Wildcard | SubQuery::QuestionMark => {
@@ -214,6 +201,7 @@ fn sub_query_parts_to_regex_tokens(
                         &mut current_score,
                         std::mem::take(&mut current),
                         suffix,
+                        case_insensitive,
                     );
                     current_score.push(0);
                 }
@@ -225,7 +213,13 @@ fn sub_query_parts_to_regex_tokens(
     }
 
     if !current.is_empty() {
-        push_token(&mut tokens, &mut current_score, current, suffix);
+        push_token(
+            &mut tokens,
+            &mut current_score,
+            current,
+            suffix,
+            case_insensitive,
+        );
     }
 
     Ok(tokens)
@@ -551,10 +545,10 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                ("[hH][aA].*".to_string(), false),
-                ("[tT].*".to_string(), false),
-                (".*[oO]".to_string(), false),
-                (".[iI][tT].*".to_string(), false),
+                ("(?i)ha.*".to_string(), false),
+                ("(?i)t.*".to_string(), false),
+                ("(?i).*o".to_string(), false),
+                ("(?i).it.*".to_string(), false),
             ]
         );
         Ok(())
@@ -569,10 +563,10 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                ("[hH][aA].*".to_string(), false),
-                ("[tT].*".to_string(), false),
-                (".*[oO]".to_string(), false),
-                (".[iI][tT].*".to_string(), false),
+                ("(?i)ha.*".to_string(), false),
+                ("(?i)t.*".to_string(), false),
+                ("(?i).*o".to_string(), false),
+                ("(?i).it.*".to_string(), false),
             ]
         );
         Ok(())
