@@ -170,6 +170,7 @@ fn sub_query_parts_to_regex_tokens(
                 };
 
                 let mut token_stream = tokenizer.token_stream(&text);
+                let mut last_token_text = None;
                 token_stream.process(&mut |token| {
                     if (!text.starts_with(&token.text) && matches!(last, LastToken::Regex))
                         || matches!(last, LastToken::Text)
@@ -185,14 +186,17 @@ fn sub_query_parts_to_regex_tokens(
 
                     current_score.push(token.text.len());
 
-                    last = if text_to_match.ends_with(&token.text) {
-                        LastToken::None
-                    } else {
-                        LastToken::Text
-                    };
+                    last = LastToken::Text;
+                    last_token_text = Some(token.text.clone());
 
                     current.push(SubQuery::Text(regex::escape(&token.text)));
                 });
+
+                if let Some(last_token_text) = last_token_text {
+                    if text_to_match.ends_with(&last_token_text) {
+                        last = LastToken::None;
+                    }
+                }
             }
             SubQuery::Wildcard | SubQuery::QuestionMark => {
                 if !matches!(last, LastToken::None) {
@@ -585,6 +589,23 @@ mod tests {
                 ("t.*".to_string(), false),
                 ("o.*".to_string(), true),
                 ("oti.".to_string(), true),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_wildcard_same_start_end() -> anyhow::Result<()> {
+        // This is an edge case that didn't work previously.
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("22tes*22 22*EST22");
+        let tokens =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
+        assert_eq!(
+            tokens,
+            vec![
+                ("22tes.*22".to_string(), false),
+                ("22.*EST22".to_string(), false),
             ]
         );
         Ok(())
