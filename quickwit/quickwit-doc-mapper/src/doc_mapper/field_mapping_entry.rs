@@ -345,17 +345,21 @@ impl TextIndexingOptions {
         tokenizer: Option<QuickwitTextTokenizer>,
         record: Option<IndexRecordOption>,
         suffix: bool,
+        fieldnorms: bool,
     ) -> anyhow::Result<Option<Self>> {
         if indexed {
             Ok(Some(TextIndexingOptions {
                 tokenizer: tokenizer.unwrap_or_else(QuickwitTextTokenizer::raw),
                 record: record.unwrap_or(IndexRecordOption::Basic),
-                fieldnorms: false,
+                fieldnorms,
                 suffix,
             }))
         } else {
-            if tokenizer.is_some() || record.is_some() {
-                bail!("`record` and `tokenizer` parameters are allowed only if indexed is true")
+            if tokenizer.is_some() || record.is_some() || fieldnorms {
+                bail!(
+                    "`record`, `tokenizer` and `fieldnorms` parameters are allowed only if \
+                     indexed is true"
+                )
             }
             Ok(None)
         }
@@ -399,10 +403,11 @@ impl TextIndexingOptions {
         Option<QuickwitTextTokenizer>,
         Option<IndexRecordOption>,
         bool, // suffix
+        bool, // fieldnorms
     ) {
-        let (indexed, tokenizer, record, _fieldorm, suffix) =
+        let (indexed, tokenizer, record, fieldorm, suffix) =
             TextIndexingOptions::to_parts_text(this);
-        (indexed, tokenizer, record, suffix)
+        (indexed, tokenizer, record, fieldorm, suffix)
     }
 
     fn to_parts_concatenate(
@@ -617,6 +622,10 @@ pub struct QuickwitJsonOptions {
             #[serde(default)]
             #[serde(skip_serializing_if = "is_false")]
             pub suffix: bool,
+
+            #[serde(default)]
+            #[serde(skip_serializing_if = "is_false")]
+            pub fieldnorms: bool,
         ),
     )]
     /// Options for indexing text in a Json field.
@@ -664,7 +673,8 @@ impl From<QuickwitJsonOptions> for JsonObjectOptions {
             let text_field_indexing = TextFieldIndexing::default()
                 .set_tokenizer(indexing_options.tokenizer.name())
                 .set_index_option(indexing_options.record)
-                .set_suffix(indexing_options.suffix);
+                .set_suffix(indexing_options.suffix)
+                .set_fieldnorms(indexing_options.fieldnorms);
             json_options = json_options.set_indexing_options(text_field_indexing);
         }
         if quickwit_json_options.expand_dots {
@@ -1113,8 +1123,8 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(
             error.to_string(),
-            "error while parsing field `data_binary`: `record` and `tokenizer` parameters are \
-             allowed only if indexed is true"
+            "error while parsing field `data_binary`: `record`, `tokenizer` and `fieldnorms` \
+             parameters are allowed only if indexed is true"
         );
     }
 
