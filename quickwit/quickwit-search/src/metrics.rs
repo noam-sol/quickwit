@@ -83,7 +83,7 @@ impl Default for SearchMetrics {
                 "search",
                 &[("kind", "server")],
                 ["status"],
-                exponential_buckets(0.001, 2.0, 15).unwrap(),
+                exponential_buckets(0.01, 1.5, 25).unwrap(),
             ),
             root_search_targeted_splits: new_histogram_vec(
                 "root_search_targeted_splits",
@@ -106,7 +106,7 @@ impl Default for SearchMetrics {
                 "search",
                 &[("kind", "server")],
                 ["status"],
-                exponential_buckets(0.001, 2.0, 15).unwrap(),
+                exponential_buckets(0.01, 1.5, 25).unwrap(),
             ),
             leaf_search_targeted_splits: new_histogram_vec(
                 "leaf_search_targeted_splits",
@@ -127,7 +127,7 @@ impl Default for SearchMetrics {
                 "Number of seconds required to run a leaf search over a single split. The timer \
                  starts after the semaphore is obtained.",
                 "search",
-                exponential_buckets(0.001, 2.0, 15).unwrap(),
+                exponential_buckets(0.01, 1.5, 25).unwrap(),
             ),
             leaf_search_single_split_tasks_ongoing: leaf_search_single_split_tasks
                 .with_label_values(["ongoing"]),
