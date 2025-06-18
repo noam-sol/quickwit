@@ -102,6 +102,11 @@ impl<'a> QueryAstVisitor<'a> for FieldNormsVisitor {
         }
         Ok(())
     }
+
+    fn visit_wildcard(&mut self, wildcard_query: &'a WildcardQuery) -> Result<(), Infallible> {
+        self.needs_fieldnorms = wildcard_query.must_end;
+        Ok(())
+    }
 }
 
 /// Build a `Query` with field resolution & forbidding range clauses.

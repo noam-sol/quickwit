@@ -51,6 +51,7 @@ impl ConvertibleToQueryAst for WildcardPhraseQuery {
             tokenizer: self.params.analyzer,
             case_insensitive: self.params.case_insensitive,
             must_start: self.params.must_start,
+            must_end: false,
         }))
     }
 }

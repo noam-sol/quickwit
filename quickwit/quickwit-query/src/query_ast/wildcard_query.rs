@@ -44,6 +44,9 @@ pub struct WildcardQuery {
 
     #[serde(default)]
     pub must_start: bool,
+
+    #[serde(default)]
+    pub must_end: bool,
 }
 
 impl From<WildcardQuery> for QueryAst {
@@ -245,6 +248,7 @@ impl WildcardQuery {
             tokenizer: None,
             case_insensitive: false,
             must_start: false,
+            must_end: false,
         }
     }
 
@@ -405,6 +409,7 @@ impl BuildTantivyAst for WildcardQuery {
                         field, terms, self.slop,
                     );
                 regex_query_with_path.set_must_start(self.must_start);
+                regex_query_with_path.set_must_end(self.must_end);
                 Ok(regex_query_with_path.into())
             }
         }
