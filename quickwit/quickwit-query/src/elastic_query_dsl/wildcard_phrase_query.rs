@@ -39,6 +39,8 @@ pub struct WildcardPhraseParams {
     pub(crate) case_insensitive: bool,
     #[serde(default)]
     pub(crate) must_start: bool,
+    #[serde(default)]
+    pub(crate) must_end: bool,
 }
 
 impl ConvertibleToQueryAst for WildcardPhraseQuery {
@@ -51,7 +53,7 @@ impl ConvertibleToQueryAst for WildcardPhraseQuery {
             tokenizer: self.params.analyzer,
             case_insensitive: self.params.case_insensitive,
             must_start: self.params.must_start,
-            must_end: false,
+            must_end: self.params.must_end,
         }))
     }
 }
@@ -84,6 +86,7 @@ impl From<String> for WildcardPhraseParams {
             slop: 0,
             case_insensitive: false,
             must_start: false,
+            must_end: false,
         }
     }
 }
