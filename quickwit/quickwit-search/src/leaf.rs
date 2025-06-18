@@ -1575,7 +1575,7 @@ async fn leaf_search_single_split_wrapper(
         }
         Err(err) => locked_incremental_merge_collector.add_failed_split(SplitSearchError {
             split_id: split.split_id.clone(),
-            error: format!("{err}"),
+            error: format!("{err:?}"),
             retryable_error: true,
         }),
     }
