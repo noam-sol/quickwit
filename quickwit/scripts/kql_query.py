@@ -53,7 +53,13 @@ QUERY_TEMPLATE = {
         "match_phrase_prefix": {field: {"query": value, "must_start": True}},
     },
     "endswith_cs": lambda field, value: {
-        "match_phrase_prefix": {f"{field}.rev": {"query": value, "must_start": True}}
+        "wildcard_phrase": {
+            field: {
+                "query": f"*{escape_wildcard_query(value)}",
+                "case_insensitive": False,
+                "must_end": True,
+            }
+        }
     },
     "startswith": lambda field, value: {
         "wildcard_phrase": {
@@ -66,10 +72,10 @@ QUERY_TEMPLATE = {
     },
     "endswith": lambda field, value: {
         "wildcard_phrase": {
-            f"{field}.rev": {
-                "query": f"{escape_wildcard_query(value)}*",
+            field: {
+                "query": f"*{escape_wildcard_query(value)}",
                 "case_insensitive": True,
-                "must_start": True,
+                "must_end": True,
             }
         }
     },
