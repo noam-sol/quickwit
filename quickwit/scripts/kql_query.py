@@ -18,6 +18,9 @@ QUERY_TEMPLATE = {
     "exact": lambda field, value: {
         "match_phrase": {field: {"query": value, "match_entire_field": True}}
     },
+    "regex": lambda field, value: {
+        "regexp": {field: {"value": value}},
+    },
     "has_cs": lambda field, value: {
         "match_phrase": {field: {"query": value}},
     },
