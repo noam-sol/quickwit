@@ -47,6 +47,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::*;
 
 use crate::collector::{make_collector_for_split, make_merge_collector, IncrementalCollector};
+use crate::error::SearchErrorAnyhowExt;
 use crate::metrics::SEARCH_METRICS;
 use crate::root::{is_metadata_count_request_with_ast, proto_storage_to_config_credentials};
 use crate::search_permit_provider::{compute_initial_memory_allocation, SearchPermit};
@@ -502,7 +503,7 @@ async fn leaf_search_single_split(
         Some(byte_range_cache.clone()),
         index_id,
     )
-    .await?;
+    .await.map_debug_internal_err()?;
 
     let index_size = compute_index_size(&hot_directory);
     if index_size < search_permit.memory_allocation() {
@@ -526,7 +527,7 @@ async fn leaf_search_single_split(
     warmup_info.simplify();
 
     let warmup_start = Instant::now();
-    warmup(&searcher, &warmup_info).await?;
+    warmup(&searcher, &warmup_info).await.map_debug_internal_err()?;
     let warmup_end = Instant::now();
     let warmup_duration: Duration = warmup_end.duration_since(warmup_start);
     let warmup_size = ByteSize(byte_range_cache.get_num_bytes());
@@ -1575,7 +1576,7 @@ async fn leaf_search_single_split_wrapper(
         }
         Err(err) => locked_incremental_merge_collector.add_failed_split(SplitSearchError {
             split_id: split.split_id.clone(),
-            error: format!("{err:?}"),
+            error: format!("{err}"),
             retryable_error: true,
         }),
     }

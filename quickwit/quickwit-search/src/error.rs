@@ -186,3 +186,13 @@ impl From<std::convert::Infallible> for SearchError {
         match infallible {}
     }
 }
+
+pub trait SearchErrorAnyhowExt<T> {
+    fn map_debug_internal_err(self) -> Result<T, SearchError>;
+}
+
+impl<T> SearchErrorAnyhowExt<T> for Result<T, anyhow::Error> {
+    fn map_debug_internal_err(self) -> Result<T, SearchError> {
+        self.map_err(|e| SearchError::Internal(format!("{:?}", e)))
+    }
+}
