@@ -159,8 +159,8 @@ def build_query(
 )
 @click.option(
     "--timestamp-field",
-    default="eventTime",
-    help="timestamp field to filter with (default: eventTime)",
+    default="timestamp",
+    help="timestamp field to filter with (default: timestamp)",
 )
 @click.option("--all-time", "-A", is_flag=True, help="Don't filter by time")
 def main(
