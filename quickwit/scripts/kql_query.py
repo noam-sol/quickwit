@@ -189,6 +189,7 @@ def main(
     query = build_query(base_query, timestamp_filter, size, sort)
 
     url = f"{host}/api/v1/_elastic/{index}/_search"
+    resp = None
     try:
         start = time.time()
         resp = requests.post(url, json=query)
@@ -200,7 +201,12 @@ def main(
         click.echo(json.dumps(response, indent=2))
     except requests.RequestException as e:
         click.echo(f"query: {json.dumps(query, indent=2)}", err=True)
-        click.echo(f"❌ Request failed: {e}, response: {resp.json()}", err=True)
+        error_response = (
+            getattr(resp, "json", lambda: resp.text)()
+            if resp is not None
+            else "No response received."
+        )
+        click.echo(f"❌ Request failed: {e}, response: {error_response}", err=True)
         sys.exit(1)
 
 
