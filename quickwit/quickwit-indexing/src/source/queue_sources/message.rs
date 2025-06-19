@@ -26,6 +26,8 @@ use quickwit_proto::types::Position;
 use quickwit_storage::{OwnedBytes, StorageResolver};
 use serde_json::Value;
 use thiserror::Error;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use tracing::info;
 
 use super::visibility::VisibilityTaskHandle;
@@ -83,18 +85,23 @@ impl RawMessage {
         self,
         message_type: MessageType,
     ) -> Result<PreProcessedMessage, PreProcessingError> {
-        let payload = match message_type {
-            MessageType::S3Notification => PreProcessedPayload::ObjectUri(
-                uri_from_s3_notification(&self.payload, &self.metadata.ack_id)?,
-            ),
+        let (payload, timestamp_opt) = match message_type {
+            MessageType::S3Notification => {
+                let (uri, timestamp) = parse_s3_notification(&self.payload, &self.metadata.ack_id)?;
+                (PreProcessedPayload::ObjectUri(uri), Some(timestamp))
+            }
             MessageType::RawUri => {
                 let payload_str = read_to_string(self.payload).context("failed to read payload")?;
-                PreProcessedPayload::ObjectUri(Uri::from_str(&payload_str)?)
+                (
+                    PreProcessedPayload::ObjectUri(Uri::from_str(&payload_str)?),
+                    None,
+                )
             }
         };
         Ok(PreProcessedMessage {
             metadata: self.metadata,
             payload,
+            timestamp_opt,
         })
     }
 }
@@ -123,6 +130,7 @@ impl PreProcessedPayload {
 pub struct PreProcessedMessage {
     pub metadata: MessageMetadata,
     pub payload: PreProcessedPayload,
+    pub timestamp_opt: Option<OffsetDateTime>,
 }
 
 impl PreProcessedMessage {
@@ -131,7 +139,10 @@ impl PreProcessedMessage {
     }
 }
 
-fn uri_from_s3_notification(message: &[u8], ack_id: &str) -> Result<Uri, PreProcessingError> {
+fn parse_s3_notification(
+    message: &[u8],
+    ack_id: &str,
+) -> Result<(Uri, OffsetDateTime), PreProcessingError> {
     let value: Value = serde_json::from_slice(message).context("invalid JSON message")?;
     if matches!(value["Event"].as_str(), Some("s3:TestEvent")) {
         info!("discarding S3 test event");
@@ -152,6 +163,13 @@ fn uri_from_s3_notification(message: &[u8], ack_id: &str) -> Result<Uri, PreProc
             ack_id: ack_id.to_string(),
         });
     }
+
+    let event_time = value["Records"][0]["eventTime"]
+        .as_str()
+        .context("invalid S3 notification: Records[0].eventTime not found")?;
+    let timestamp = OffsetDateTime::parse(event_time, &Rfc3339)
+        .context("invalid S3 notification: Records[0].eventTime not in rfc3339")?;
+
     let key = value["Records"][0]["s3"]["object"]["key"]
         .as_str()
         .context("invalid S3 notification: Records[0].s3.object.key not found")?;
@@ -160,7 +178,9 @@ fn uri_from_s3_notification(message: &[u8], ack_id: &str) -> Result<Uri, PreProc
         .context("invalid S3 notification: Records[0].s3.bucket.name not found")?;
     let encoded_key = urlencoding::decode(key)
         .context("invalid S3 notification: Records[0].s3.object.key could not be url decoded")?;
-    Uri::from_str(&format!("s3://{}/{}", bucket, encoded_key)).map_err(|e| e.into())
+    let uri = Uri::from_str(&format!("s3://{}/{}", bucket, encoded_key))?;
+
+    Ok((uri, timestamp))
 }
 
 /// A message for which we know as much of the global processing status as
@@ -196,6 +216,7 @@ impl ReadyMessage {
                         batch_reader,
                         partition_id,
                         visibility_handle: self.visibility_handle,
+                        timestamp_opt: self.content.timestamp_opt,
                     }))
                 }
             }
@@ -212,6 +233,7 @@ pub struct InProgressMessage {
     pub partition_id: PartitionId,
     pub visibility_handle: VisibilityTaskHandle,
     pub batch_reader: ObjectUriBatchReader,
+    pub timestamp_opt: Option<OffsetDateTime>,
 }
 
 #[cfg(test)]
@@ -260,9 +282,13 @@ mod tests {
                 }
             ]
         }"#;
-        let actual_uri = uri_from_s3_notification(test_message.as_bytes(), "myackid").unwrap();
+        let (actual_uri, actual_timestamp) =
+            parse_s3_notification(test_message.as_bytes(), "myackid").unwrap();
         let expected_uri = Uri::from_str("s3://mybucket/logs.json").unwrap();
+        let expected_timestamp =
+            OffsetDateTime::parse("2021-05-22T09:22:41.789Z", &Rfc3339).unwrap();
         assert_eq!(actual_uri, expected_uri);
+        assert_eq!(actual_timestamp, expected_timestamp);
     }
 
     #[test]
@@ -278,8 +304,7 @@ mod tests {
                 }
             ]
         }"#;
-        let result =
-            uri_from_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
+        let result = parse_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
         assert!(matches!(
             result,
             Err(PreProcessingError::UnexpectedFormat(_))
@@ -324,8 +349,7 @@ mod tests {
                 }
             ]
         }"#;
-        let result =
-            uri_from_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
+        let result = parse_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
         assert!(matches!(
             result,
             Err(PreProcessingError::Discardable { .. })
@@ -342,12 +366,62 @@ mod tests {
             "RequestId":"5582815E1AEA5ADF",
             "HostId":"8cLeGAmw098X5cv4Zkwcmo8vvZa3eH3eKxsPzbB9wrR+YstdA6Knx4Ip8EXAMPLE"
         }"#;
-        let result =
-            uri_from_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
+        let result = parse_s3_notification(&OwnedBytes::new(invalid_message.as_bytes()), "myackid");
         if let Err(PreProcessingError::Discardable { ack_id }) = result {
             assert_eq!(ack_id, "myackid");
         } else {
             panic!("Expected skippable error");
         }
+    }
+
+    #[test]
+    fn test_uri_from_s3_notification_url_decode() {
+        let test_message = r#"
+        {
+            "Records": [
+                {
+                "eventVersion": "2.1",
+                "eventSource": "aws:s3",
+                "awsRegion": "us-west-2",
+                "eventTime": "2021-05-22T09:22:41.789Z",
+                "eventName": "ObjectCreated:Put",
+                "userIdentity": {
+                    "principalId": "AWS:AIDAJDPLRKLG7UEXAMPLE"
+                },
+                "requestParameters": {
+                    "sourceIPAddress": "127.0.0.1"
+                },
+                "responseElements": {
+                    "x-amz-request-id": "C3D13FE58DE4C810",
+                    "x-amz-id-2": "FMyUVURIx7Zv2cPi/IZb9Fk1/U4QfTaVK5fahHPj/"
+                },
+                "s3": {
+                    "s3SchemaVersion": "1.0",
+                    "configurationId": "testConfigRule",
+                    "bucket": {
+                        "name": "mybucket",
+                        "ownerIdentity": {
+                            "principalId": "A3NL1KOZZKExample"
+                        },
+                        "arn": "arn:aws:s3:::mybucket"
+                    },
+                    "object": {
+                        "key": "hello%3A%3Aworld%3A%3Alogs.json",
+                        "size": 1024,
+                        "eTag": "d41d8cd98f00b204e9800998ecf8427e",
+                        "versionId": "096fKKXTRTtl3on89fVO.nfljtsv6qko",
+                        "sequencer": "0055AED6DCD90281E5"
+                    }
+                }
+                }
+            ]
+        }"#;
+        let (actual_uri, actual_timestamp) =
+            parse_s3_notification(test_message.as_bytes(), "myackid").unwrap();
+        let expected_uri = Uri::from_str("s3://mybucket/hello::world::logs.json").unwrap();
+        let expected_timestamp =
+            OffsetDateTime::parse("2021-05-22T09:22:41.789Z", &Rfc3339).unwrap();
+        assert_eq!(actual_uri, expected_uri);
+        assert_eq!(actual_timestamp, expected_timestamp);
     }
 }

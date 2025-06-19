@@ -381,6 +381,7 @@ mod tests {
                 payload: PreProcessedPayload::ObjectUri(
                     Uri::from_str(&format!("s3://bucket/key{}", i)).unwrap(),
                 ),
+                timestamp_opt: None,
             })
             .collect()
     }
