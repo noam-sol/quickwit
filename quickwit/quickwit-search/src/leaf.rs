@@ -503,7 +503,8 @@ async fn leaf_search_single_split(
         Some(byte_range_cache.clone()),
         index_id,
     )
-    .await.map_debug_internal_err()?;
+    .await
+    .map_debug_internal_err()?;
 
     let index_size = compute_index_size(&hot_directory);
     if index_size < search_permit.memory_allocation() {
@@ -527,7 +528,9 @@ async fn leaf_search_single_split(
     warmup_info.simplify();
 
     let warmup_start = Instant::now();
-    warmup(&searcher, &warmup_info).await.map_debug_internal_err()?;
+    warmup(&searcher, &warmup_info)
+        .await
+        .map_debug_internal_err()?;
     let warmup_end = Instant::now();
     let warmup_duration: Duration = warmup_end.duration_since(warmup_start);
     let warmup_size = ByteSize(byte_range_cache.get_num_bytes());
