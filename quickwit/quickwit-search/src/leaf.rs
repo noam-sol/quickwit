@@ -1291,9 +1291,18 @@ pub async fn multi_leaf_search(
 
     let leaf_responses: Vec<crate::Result<LeafSearchResponse>> = tokio::time::timeout(
         searcher_context.searcher_config.request_timeout(),
-        try_join_all(leaf_request_tasks),
+        try_join_all(&mut leaf_request_tasks),
     )
-    .await??;
+    .await
+    .map_err(|e| {
+        for task in leaf_request_tasks {
+            // When the permit semaphore is full, all leaf request tasks wait on it.
+            // By aborting the task, the future will get dropped, meaning the search permit waiting
+            // future will get dropped.
+            task.abort();
+        }
+        e
+    })??;
     let merge_collector = make_merge_collector(&search_request, &aggregation_limits)?;
     let mut incremental_merge_collector = IncrementalCollector::new(merge_collector);
     for result in leaf_responses {
