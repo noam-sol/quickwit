@@ -547,10 +547,18 @@ impl Indexer {
         let docstore_compression = Compressor::Zstd(ZstdCompressor {
             compression_level: Some(indexing_settings.docstore_compression_level),
         });
+        let fieldnorms_compression = match indexing_settings.fieldnorms_compression_level {
+            0 => Compressor::None,
+            level => Compressor::Zstd(ZstdCompressor {
+                compression_level: Some(level),
+            }),
+        };
+
         let index_settings = IndexSettings {
             docstore_blocksize: indexing_settings.docstore_blocksize,
             docstore_compression,
             docstore_compress_dedicated_thread: true,
+            fieldnorms_compression,
         };
         let cooperative_indexing_opt: Option<CooperativeIndexingCycle> =
             cooperative_indexing_permits_opt.map(|cooperative_indexing_permits| {
