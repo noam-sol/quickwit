@@ -102,6 +102,9 @@ pub struct IndexingSettings {
     #[schema(default = 8)]
     #[serde(default = "IndexingSettings::default_docstore_compression_level")]
     pub docstore_compression_level: i32,
+    #[schema(default = 3)]
+    #[serde(default = "IndexingSettings::default_fieldnorms_compression_level")]
+    pub fieldnorms_compression_level: i32,
     #[schema(default = 1_000_000)]
     #[serde(default = "IndexingSettings::default_docstore_blocksize")]
     pub docstore_blocksize: usize,
@@ -135,6 +138,10 @@ impl IndexingSettings {
         8
     }
 
+    pub fn default_fieldnorms_compression_level() -> i32 {
+        3
+    }
+
     pub fn default_split_num_docs_target() -> usize {
         10_000_000
     }
@@ -154,6 +161,7 @@ impl Default for IndexingSettings {
             commit_timeout_secs: Self::default_commit_timeout_secs(),
             docstore_blocksize: Self::default_docstore_blocksize(),
             docstore_compression_level: Self::default_docstore_compression_level(),
+            fieldnorms_compression_level: Self::default_fieldnorms_compression_level(),
             split_num_docs_target: Self::default_split_num_docs_target(),
             merge_policy: MergePolicyConfig::default(),
             resources: IndexingResources::default(),
