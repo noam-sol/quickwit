@@ -1297,14 +1297,13 @@ pub async fn multi_leaf_search(
         try_join_all(&mut leaf_request_tasks),
     )
     .await
-    .map_err(|e| {
+    .inspect_err(|_| {
         for task in leaf_request_tasks {
             // When the permit semaphore is full, all leaf request tasks wait on it.
             // By aborting the task, the future will get dropped, meaning the search permit waiting
             // future will get dropped.
             task.abort();
         }
-        e
     })??;
     let merge_collector = make_merge_collector(&search_request, &aggregation_limits)?;
     let mut incremental_merge_collector = IncrementalCollector::new(merge_collector);
