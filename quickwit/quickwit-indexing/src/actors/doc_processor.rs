@@ -529,7 +529,7 @@ impl DocProcessor {
                     );
                     self.counters.record_error(&error, num_bytes as u64);
                     bail!(
-                        "index id - {}, source_id - {}",
+                        "index id - {}, source_id - {}, error - {error}",
                         self.counters.index_id,
                         self.counters.source_id
                     );
