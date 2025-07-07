@@ -175,7 +175,7 @@ fn sub_query_parts_to_regex_tokens(
                 let mut token_stream = tokenizer.token_stream(&text);
                 let mut last_token_text = None;
                 token_stream.process(&mut |token| {
-                    if (!text.starts_with(&token.text) && matches!(last, LastToken::Regex))
+                    if (!text_to_match.starts_with(&token.text) && matches!(last, LastToken::Regex))
                         || matches!(last, LastToken::Text)
                     {
                         push_token(
