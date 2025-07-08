@@ -102,7 +102,7 @@ pub struct IndexingSettings {
     #[schema(default = 8)]
     #[serde(default = "IndexingSettings::default_docstore_compression_level")]
     pub docstore_compression_level: i32,
-    #[schema(default = 3)]
+    #[schema(default = "IndexingSettings::default_fieldnorms_compression_level")]
     #[serde(default = "IndexingSettings::default_fieldnorms_compression_level")]
     pub fieldnorms_compression_level: i32,
     #[schema(default = 1_000_000)]
@@ -139,7 +139,8 @@ impl IndexingSettings {
     }
 
     pub fn default_fieldnorms_compression_level() -> i32 {
-        3
+        // RLE.
+        -2
     }
 
     pub fn default_split_num_docs_target() -> usize {
