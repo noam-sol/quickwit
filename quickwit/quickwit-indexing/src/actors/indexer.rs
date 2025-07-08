@@ -548,6 +548,8 @@ impl Indexer {
             compression_level: Some(indexing_settings.docstore_compression_level),
         });
         let fieldnorms_compression = match indexing_settings.fieldnorms_compression_level {
+            -2 => Compressor::Rle,
+            -1 => Compressor::Lz4,
             0 => Compressor::None,
             level => Compressor::Zstd(ZstdCompressor {
                 compression_level: Some(level),
