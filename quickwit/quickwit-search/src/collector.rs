@@ -31,6 +31,7 @@ use tantivy::aggregation::{AggregationLimitsGuard, AggregationSegmentCollector};
 use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::columnar::{ColumnType, MonotonicallyMappableToU64};
 use tantivy::fastfield::Column;
+use tantivy::schema::Schema;
 use tantivy::{DateTime, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 use crate::find_trace_ids_collector::{FindTraceIdsCollector, FindTraceIdsSegmentCollector, Span};
@@ -746,7 +747,7 @@ impl QuickwitCollector {
         fast_field_names
     }
 
-    pub fn warmup_info(&self) -> WarmupInfo {
+    pub fn warmup_info(&self, schema: &Schema) -> WarmupInfo {
         WarmupInfo {
             fast_fields: self
                 .fast_field_names()
@@ -756,7 +757,16 @@ impl QuickwitCollector {
                     with_subfields: false,
                 })
                 .collect(),
-            field_norms: self.requires_scoring(),
+            fieldnorms_fields: if self.requires_scoring() {
+                // TODO extract relevant fields from query ast, currently getting only all static
+                // fields to be sorted by _score.
+                schema
+                    .fields()
+                    .map(|(_, entry)| entry.name().to_string())
+                    .collect()
+            } else {
+                HashSet::new()
+            },
             ..WarmupInfo::default()
         }
     }

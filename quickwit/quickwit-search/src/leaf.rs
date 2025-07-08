@@ -25,7 +25,9 @@ use futures::future::try_join_all;
 use quickwit_common::pretty::PrettySample;
 use quickwit_config::StorageCredentials;
 use quickwit_directories::{CachingDirectory, HotDirectory, StorageDirectory};
-use quickwit_doc_mapper::{Automaton, DocMapper, FastFieldWarmupInfo, TermRange, WarmupInfo};
+use quickwit_doc_mapper::{
+    Automaton, DocMapper, FastFieldWarmupInfo, TermRange, WarmupInfo, DYNAMIC_FIELD_NAME,
+};
 use quickwit_proto::search::{
     CountHits, LeafSearchRequest, LeafSearchResponse, PartialHit, ReportSplit, ResourceStats,
     SearchRequest, SortOrder, SortValue, SplitIdAndFooterOffsets, SplitSearchError,
@@ -236,7 +238,7 @@ pub(crate) async fn warmup(searcher: &Searcher, warmup_info: &WarmupInfo) -> any
             .instrument(debug_span!("warm_up_term_dicts"));
     let warm_up_fastfields_future = warm_up_fastfields(searcher, &warmup_info.fast_fields)
         .instrument(debug_span!("warm_up_fastfields"));
-    let warm_up_fieldnorms_future = warm_up_fieldnorms(searcher, warmup_info.field_norms)
+    let warm_up_fieldnorms_future = warm_up_fieldnorms(searcher, &warmup_info.fieldnorms_fields)
         .instrument(debug_span!("warm_up_fieldnorms"));
     // TODO merge warm_up_postings into warm_up_term_dict_fields
     let warm_up_postings_future = warm_up_postings(searcher, &warmup_info.term_dict_fields)
@@ -414,22 +416,52 @@ async fn warm_up_automatons(
     Ok(())
 }
 
-async fn warm_up_fieldnorms(searcher: &Searcher, requires_scoring: bool) -> anyhow::Result<()> {
-    if !requires_scoring {
+async fn warm_up_fieldnorms(
+    searcher: &Searcher,
+    fieldnorm_fields: &HashSet<String>,
+) -> anyhow::Result<()> {
+    if fieldnorm_fields.is_empty() {
         return Ok(());
     }
+
+    let dynamic_field_opt = searcher.schema().get_field(DYNAMIC_FIELD_NAME).ok();
+    let expand_dots_opt = dynamic_field_opt.map(|f| {
+        searcher
+            .schema()
+            .get_field_entry(f)
+            .is_expand_dots_enabled()
+    });
     let mut warm_up_futures = Vec::new();
-    for field in searcher.schema().fields() {
-        for segment_reader in searcher.segment_readers() {
-            let data = segment_reader.fieldnorms_readers().get_inner_file();
-            for idx in data.get_field_indexes(field.0) {
-                let file_handle_opt = data.open_read_with_idx(field.0, idx);
-                if let Some(file_handle) = file_handle_opt {
-                    warm_up_futures.push(async move { file_handle.read_bytes_async().await })
-                }
+
+    for segment_reader in searcher.segment_readers() {
+        let data = segment_reader.fieldnorms_readers().get_inner_file();
+
+        for fieldnorm_field in fieldnorm_fields {
+            let file_handle_opt = if let Some((field, _)) =
+                searcher.schema().find_field(fieldnorm_field)
+            {
+                data.open_read(field)
+            } else if let Some(dynamic_field) = dynamic_field_opt {
+                // Get the real json path encoding used when opening the fieldnorm in search.
+                // from_field_json_path() is used to create the search terms, and the encoded path
+                // is not the same as the input |fieldnorm_field| given in the query.
+                let term = Term::from_field_json_path(
+                    dynamic_field,
+                    fieldnorm_field,
+                    expand_dots_opt.unwrap(),
+                );
+                term.get_json_path()
+                    .and_then(|path| data.open_read_with_idx(dynamic_field, path))
+            } else {
+                None
+            };
+
+            if let Some(file_handle) = file_handle_opt {
+                warm_up_futures.push(async move { file_handle.read_bytes_async().await });
             }
         }
     }
+
     try_join_all(warm_up_futures).await?;
     Ok(())
 }
@@ -526,7 +558,7 @@ async fn leaf_search_single_split(
     let split_schema = index.schema();
     let (query, mut warmup_info) = doc_mapper.query(split_schema.clone(), &query_ast, false)?;
 
-    let collector_warmup_info = collector.warmup_info();
+    let collector_warmup_info = collector.warmup_info(&split_schema);
     warmup_info.merge(collector_warmup_info);
     warmup_info.simplify();
 

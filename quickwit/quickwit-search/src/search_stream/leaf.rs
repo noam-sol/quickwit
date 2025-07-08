@@ -194,7 +194,17 @@ async fn leaf_search_stream_single_split(
     let stream_warmup_info = WarmupInfo {
         fast_fields,
         // TODO no test fail if this line get removed
-        field_norms: requires_scoring,
+        fieldnorms_fields: if requires_scoring {
+            // TODO extract relevant fields from query ast, currently getting only all static
+            // fields to be sorted by _score.
+            searcher
+                .schema()
+                .fields()
+                .map(|(_, entry)| entry.name().to_string())
+                .collect()
+        } else {
+            HashSet::new()
+        },
         ..Default::default()
     };
     warmup_info.merge(stream_warmup_info);

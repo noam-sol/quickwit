@@ -84,27 +84,27 @@ impl<'a> QueryAstVisitor<'a> for ExistsQueryFastFields {
 
 #[derive(Default)]
 struct FieldNormsVisitor {
-    needs_fieldnorms: bool,
+    fieldnorms_fields: HashSet<String>,
 }
 
 impl<'a> QueryAstVisitor<'a> for FieldNormsVisitor {
     type Err = Infallible;
 
     fn visit_full_text(&mut self, full_text_query: &'a FullTextQuery) -> Result<(), Infallible> {
-        if matches!(
-            full_text_query.params.mode,
-            FullTextMode::Phrase {
-                match_entire_field: true,
-                ..
-            }
-        ) {
-            self.needs_fieldnorms = true;
+        if let FullTextMode::Phrase {
+            match_entire_field: true,
+            ..
+        } = full_text_query.params.mode
+        {
+            self.fieldnorms_fields.insert(full_text_query.field.clone());
         }
         Ok(())
     }
 
     fn visit_wildcard(&mut self, wildcard_query: &'a WildcardQuery) -> Result<(), Infallible> {
-        self.needs_fieldnorms = wildcard_query.must_end;
+        if wildcard_query.must_end {
+            self.fieldnorms_fields.insert(wildcard_query.field.clone());
+        }
         Ok(())
     }
 }
@@ -161,10 +161,10 @@ pub(crate) fn build_query(
             .or_default() |= need_position;
     });
 
-    let field_norms = should_warmup_field_norms(query_ast);
+    let fieldnorms_fields = get_warmup_fieldnorms_fields(query_ast);
     let warmup_info: WarmupInfo = WarmupInfo {
         term_dict_fields: term_set_query_fields,
-        field_norms,
+        fieldnorms_fields,
         terms_grouped_by_field,
         term_ranges_grouped_by_field,
         fast_fields,
@@ -214,11 +214,11 @@ fn extract_term_set_query_fields(
     Ok(visitor.term_dict_fields_to_warm_up)
 }
 
-fn should_warmup_field_norms(query_ast: &QueryAst) -> bool {
+fn get_warmup_fieldnorms_fields(query_ast: &QueryAst) -> HashSet<String> {
     let mut field_norms_visitor = FieldNormsVisitor::default();
     // This cannot fail. The error type is Infallible.
     let _: Result<(), Infallible> = field_norms_visitor.visit(query_ast);
-    field_norms_visitor.needs_fieldnorms
+    field_norms_visitor.fieldnorms_fields
 }
 
 fn prefix_term_to_range(prefix: Term) -> (Bound<Term>, Bound<Term>) {

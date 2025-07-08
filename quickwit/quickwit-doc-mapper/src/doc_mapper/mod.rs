@@ -107,8 +107,8 @@ pub struct WarmupInfo {
     pub term_dict_fields: HashSet<Field>,
     /// Fast fields which needs to be loaded
     pub fast_fields: HashSet<FastFieldWarmupInfo>,
-    /// Whether to warmup field norms. Used mostly for scoring.
-    pub field_norms: bool,
+    /// Which fieldnorms fields to warmup. Used mostly for scoring.
+    pub fieldnorms_fields: HashSet<String>,
     /// Terms to warmup, and whether their position is needed too.
     pub terms_grouped_by_field: HashMap<Field, HashMap<Term, bool>>,
     /// Term ranges to warmup, and whether their position is needed too.
@@ -121,7 +121,7 @@ impl WarmupInfo {
     /// Merge other WarmupInfo into self.
     pub fn merge(&mut self, other: WarmupInfo) {
         self.term_dict_fields.extend(other.term_dict_fields);
-        self.field_norms |= other.field_norms;
+        self.fieldnorms_fields.extend(other.fieldnorms_fields);
 
         for fast_field_warmup_info in other.fast_fields.into_iter() {
             // avoid overwriting with a less demanding warmup
@@ -660,7 +660,7 @@ mod tests {
         let wi_base = WarmupInfo {
             term_dict_fields: hashset_field(&[1, 2]),
             fast_fields: hashset_fast(&["fast1", "fast2"]),
-            field_norms: false,
+            fieldnorms_fields: HashSet::new(),
             terms_grouped_by_field: hashmap(&[(1, "term1", false), (1, "term2", false)]),
             term_ranges_grouped_by_field: hashmap_ranges(&[
                 (2, "term1", false),
@@ -680,10 +680,14 @@ mod tests {
         assert_eq!(wi_cloned, wi_base);
 
         let mut wi_base = wi_base;
+
+        let mut fieldnorms_fields = HashSet::new();
+        fieldnorms_fields.insert("a".to_string());
+
         let wi_2 = WarmupInfo {
             term_dict_fields: hashset_field(&[2, 3]),
             fast_fields: hashset_fast(&["fast2", "fast3"]),
-            field_norms: true,
+            fieldnorms_fields: fieldnorms_fields.clone(),
             terms_grouped_by_field: hashmap(&[(2, "term1", false), (1, "term2", true)]),
             term_ranges_grouped_by_field: hashmap_ranges(&[
                 (3, "term1", false),
@@ -709,7 +713,7 @@ mod tests {
             wi_base.fast_fields,
             hashset_fast(&["fast1", "fast2", "fast3"])
         );
-        assert!(wi_base.field_norms);
+        assert_eq!(wi_base.fieldnorms_fields, fieldnorms_fields);
 
         let expected_terms = [(1, "term1", false), (1, "term2", true), (2, "term1", false)];
         for (field, term, pos) in expected_terms {
@@ -770,7 +774,7 @@ mod tests {
         let mut warmup_info = WarmupInfo {
             term_dict_fields: hashset_field(&[1]),
             fast_fields: hashset_fast(&["fast1", "fast2"]),
-            field_norms: false,
+            fieldnorms_fields: HashSet::new(),
             terms_grouped_by_field: hashmap(&[
                 (1, "term1", false),
                 (1, "term2", true),
@@ -801,7 +805,7 @@ mod tests {
         let expected = WarmupInfo {
             term_dict_fields: hashset_field(&[1]),
             fast_fields: hashset_fast(&["fast1", "fast2"]),
-            field_norms: false,
+            fieldnorms_fields: HashSet::new(),
             terms_grouped_by_field: hashmap(&[(1, "term2", true), (2, "term3", false)]),
             term_ranges_grouped_by_field: hashmap_ranges(&[
                 (1, "term2", true),

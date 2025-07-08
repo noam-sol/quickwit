@@ -1291,7 +1291,7 @@ pub async fn search_plan(
         true,
     )?;
     let merge_collector = make_merge_collector(&search_request, &Default::default())?;
-    warmup_info.merge(merge_collector.warmup_info());
+    warmup_info.merge(merge_collector.warmup_info(&doc_mapper.schema()));
     warmup_info.simplify();
 
     let split_ids = split_metadatas
@@ -1299,7 +1299,7 @@ pub async fn search_plan(
         .map(|split| format!("{}/{}", split.index_uid.index_id, split.split_id))
         .collect();
     // this is an upper bound, we'd need access to a hotdir for more precise results
-    let fieldnorm_query_count = if warmup_info.field_norms {
+    let fieldnorm_query_count = if !warmup_info.fieldnorms_fields.is_empty() {
         doc_mapper
             .schema()
             .fields()
