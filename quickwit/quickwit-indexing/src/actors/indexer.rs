@@ -59,6 +59,10 @@ use crate::models::{
 // Random partition ID used to gather partitions exceeding the maximum number of partitions.
 const OTHER_PARTITION_ID: u64 = 3264326757911759461u64;
 
+const RLE_COMPRESSION_LEVEL: i32 = -2;
+const LZ4_COMPRESSION_LEVEL: i32 = -1;
+const NO_COMPRESSION_LEVEL: i32 = 0;
+
 #[derive(Debug)]
 struct CommitTimeout {
     workbench_id: Ulid,
@@ -548,9 +552,9 @@ impl Indexer {
             compression_level: Some(indexing_settings.docstore_compression_level),
         });
         let fieldnorms_compression = match indexing_settings.fieldnorms_compression_level {
-            -2 => Compressor::Rle,
-            -1 => Compressor::Lz4,
-            0 => Compressor::None,
+            RLE_COMPRESSION_LEVEL => Compressor::Rle,
+            LZ4_COMPRESSION_LEVEL => Compressor::Lz4,
+            NO_COMPRESSION_LEVEL => Compressor::None,
             level => Compressor::Zstd(ZstdCompressor {
                 compression_level: Some(level),
             }),
