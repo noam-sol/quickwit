@@ -86,7 +86,7 @@
       "indexing_settings": {
         "commit_timeout_secs": 301,
         "docstore_compression_level": 8,
-        "fieldnorms_compression_level": 3,
+        "fieldnorms_compression_level": -2,
         "docstore_blocksize": 1000000,
         "split_num_docs_target": 10000001,
         "merge_policy": {
