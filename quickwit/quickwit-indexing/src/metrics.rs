@@ -14,7 +14,7 @@
 
 use once_cell::sync::Lazy;
 use quickwit_common::metrics::{
-    linear_buckets, new_counter, new_counter_vec, new_gauge, new_gauge_vec, new_histogram_vec,
+    exponential_buckets, new_counter, new_counter_vec, new_gauge, new_gauge_vec, new_histogram_vec,
     HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
 };
 
@@ -108,8 +108,7 @@ impl Default for IndexerMetrics {
                     "indexing",
                     &[],
                     ["source"],
-                    // 15 seconds up to 3 minutes
-                    linear_buckets(15.0, 15.0, 12).unwrap(),
+                    exponential_buckets(15.0, 1.5, 15).unwrap(),
                 )
             }),
         }
