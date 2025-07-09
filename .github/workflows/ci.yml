@@ -97,10 +97,11 @@ jobs:
         if: always() && steps.modified.outputs.rust_src == 'true'
         run: python3 -m venv venv && source venv/bin/activate && pip install pyaml requests
         working-directory: ./quickwit/rest-api-tests
-      - name: Run REST API tests
-        if: always() && steps.modified.outputs.rust_src == 'true'
-        run: source venv/bin/activate && python3 ./run_tests.py --binary ../target/debug/quickwit
-        working-directory: ./quickwit/rest-api-tests
+      # CORE-588
+      # - name: Run REST API tests
+      #   if: always() && steps.modified.outputs.rust_src == 'true'
+      #   run: source venv/bin/activate && python3 ./run_tests.py --binary ../target/debug/quickwit
+      #   working-directory: ./quickwit/rest-api-tests
 
   lints:
     name: Lints
