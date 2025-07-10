@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use anyhow::Context;
+use quickwit_query::tokenizers::SimpleIgnoreUUIDTokenizer;
 use quickwit_query::{CodeTokenizer, DEFAULT_REMOVE_TOKEN_LENGTH};
 use serde::{Deserialize, Serialize};
 use tantivy::tokenizer::{
@@ -51,6 +52,9 @@ impl TokenizerConfig {
             TokenizerType::SourceCode => TextAnalyzer::builder(CodeTokenizer::default()).dynamic(),
             TokenizerType::Whitespace => {
                 TextAnalyzer::builder(WhitespaceTokenizer::default()).dynamic()
+            }
+            TokenizerType::SimpleIgnoreUUID => {
+                TextAnalyzer::builder(SimpleIgnoreUUIDTokenizer::default()).dynamic()
             }
             TokenizerType::Ngram(options) => {
                 let tokenizer =
@@ -134,6 +138,7 @@ pub enum TokenizerType {
     Simple,
     SourceCode,
     Whitespace,
+    SimpleIgnoreUUID,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, utoipa::ToSchema)]
