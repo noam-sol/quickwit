@@ -16,6 +16,7 @@ mod chinese_compatible;
 mod code_tokenizer;
 #[cfg(feature = "multilang")]
 mod multilang;
+mod simple_ignore_uuid_tokenizer;
 mod tokenizer_manager;
 
 use once_cell::sync::Lazy;
@@ -28,6 +29,7 @@ use self::chinese_compatible::ChineseTokenizer;
 pub use self::code_tokenizer::CodeTokenizer;
 #[cfg(feature = "multilang")]
 pub use self::multilang::MultiLangTokenizer;
+pub use self::simple_ignore_uuid_tokenizer::SimpleIgnoreUUIDTokenizer;
 pub use self::tokenizer_manager::TokenizerManager;
 
 pub const DEFAULT_REMOVE_TOKEN_LENGTH: usize = 255;
@@ -67,6 +69,14 @@ pub fn create_default_quickwit_tokenizer_manager() -> TokenizerManager {
     tokenizer_manager.register("en_stem", en_stem_tokenizer, true);
 
     tokenizer_manager.register("whitespace", WhitespaceTokenizer::default(), false);
+
+    tokenizer_manager.register(
+        "simple_ignore_uuid",
+        TextAnalyzer::builder(SimpleIgnoreUUIDTokenizer::default())
+            .filter(RemoveLongFilter::limit(DEFAULT_REMOVE_TOKEN_LENGTH))
+            .build(),
+        false,
+    );
 
     let chinese_tokenizer = TextAnalyzer::builder(ChineseTokenizer)
         .filter(RemoveLongFilter::limit(DEFAULT_REMOVE_TOKEN_LENGTH))
