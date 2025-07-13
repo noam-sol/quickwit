@@ -14,6 +14,10 @@
 
 // Based on https://github.com/aslamplr/warp_lambda under MIT license
 
+//
+// Original code from https://github.com/danielSanchezQ/warp-reverse-proxy/tree/master
+//
+
 //! Fully composable [warp](https://github.com/seanmonstar/warp) filter that can be used as a reverse proxy. It forwards the request to the
 //! desired address and replies back the remote address response.
 //!
@@ -44,6 +48,7 @@
 //!     warp::serve(app).run(([0, 0, 0, 0], 3030)).await;
 //! }
 //! ```
+use crate::searcher::reverse_proxy::errors;
 
 use once_cell::sync::{Lazy, OnceCell};
 use reqwest::redirect::Policy;
@@ -54,8 +59,6 @@ use warp::http::{HeaderMap, HeaderValue, Method as RequestMethod};
 use warp::hyper::body::Bytes;
 use warp::hyper::Body;
 use warp::{Filter, Rejection};
-
-use crate::searcher::reverse_proxy::errors;
 
 /// Reverse proxy internal client
 ///
@@ -299,6 +302,7 @@ async fn proxy_request(request: reqwest::Request) -> Result<reqwest::Response, e
 fn default_reqwest_client() -> reqwest::Client {
     reqwest::Client::builder()
         .redirect(Policy::none())
+        .http2_prior_knowledge()
         .build()
         // we should panic here, it is enforce that the client is needed, and there is no error
         // handling possible on function call, better to stop execution.
