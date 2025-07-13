@@ -284,7 +284,7 @@ impl WildcardQuery {
                     tokenizer_name,
                     tokenizer_manager,
                     self.case_insensitive,
-                    false,
+                    text_field_indexing.suffix(),
                 )?;
 
                 let regex_terms = if tokens.len() == 1 {
