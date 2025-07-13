@@ -46,7 +46,7 @@ use tantivy::aggregation::intermediate_agg_result::IntermediateAggregationResult
 use tantivy::collector::Collector;
 use tantivy::schema::{Field, FieldEntry, FieldType, Schema};
 use tantivy::TantivyError;
-use tracing::{debug, info_span, instrument};
+use tracing::{debug, info, info_span, instrument};
 
 use crate::cluster_client::ClusterClient;
 use crate::collector::{make_merge_collector, QuickwitAggregations};
@@ -749,6 +749,7 @@ pub(crate) async fn search_partial_hits_phase(
                     indexes_metas_for_leaf_search,
                     client_jobs,
                 )?;
+                info!("starting leaf_search at {}", client.grpc_addr());
                 leaf_request_tasks.push(cluster_client.leaf_search(leaf_request, client.clone()));
             }
             try_join_all(leaf_request_tasks).await?

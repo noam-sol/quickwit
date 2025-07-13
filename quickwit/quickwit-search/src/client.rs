@@ -34,6 +34,8 @@ use tracing::{info_span, warn, Instrument};
 use crate::error::parse_grpc_error;
 use crate::SearchService;
 
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Impl is an enumeration that meant to manage Quickwit's search service client types.
 #[derive(Clone)]
 enum SearchServiceClientImpl {
@@ -300,6 +302,30 @@ impl SearchServiceClient {
     }
 }
 
+/// Configures a call to [`create_search_client`].
+pub struct SearchClientConfig {
+    #[allow(missing_docs)]
+    pub grpc_addr: SocketAddr,
+    #[allow(missing_docs)]
+    pub max_message_size: ByteSize,
+    #[allow(missing_docs)]
+    pub timeout: Option<Duration>,
+}
+
+/// Creates a [`SearchServiceClient`] similarly to [`create_search_client_from_grpc_addr`].
+pub fn create_search_client(config: &SearchClientConfig) -> SearchServiceClient {
+    let timeout = config.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let uri = Uri::builder()
+        .scheme("http")
+        .authority(config.grpc_addr.to_string().as_str())
+        .path_and_query("/")
+        .build()
+        .expect("The URI should be well-formed.");
+    let channel = Endpoint::from(uri).connect_lazy();
+    let timeout_channel = Timeout::new(channel, timeout);
+    create_search_client_from_channel(config.grpc_addr, timeout_channel, config.max_message_size)
+}
+
 /// Creates a [`SearchServiceClient`] from a socket address.
 /// The underlying channel connects lazily and is set up to time out after 5 seconds. It reconnects
 /// automatically should the connection be dropped.
@@ -307,15 +333,11 @@ pub fn create_search_client_from_grpc_addr(
     grpc_addr: SocketAddr,
     max_message_size: ByteSize,
 ) -> SearchServiceClient {
-    let uri = Uri::builder()
-        .scheme("http")
-        .authority(grpc_addr.to_string().as_str())
-        .path_and_query("/")
-        .build()
-        .expect("The URI should be well-formed.");
-    let channel = Endpoint::from(uri).connect_lazy();
-    let timeout_channel = Timeout::new(channel, Duration::from_secs(5));
-    create_search_client_from_channel(grpc_addr, timeout_channel, max_message_size)
+    create_search_client(&SearchClientConfig {
+        grpc_addr,
+        max_message_size,
+        timeout: None,
+    })
 }
 
 /// Creates a [`SearchServiceClient`] from a pre-established connection (channel).

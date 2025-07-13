@@ -13,7 +13,10 @@
 // limitations under the License.
 
 mod api;
-mod environment;
+mod aws;
+pub mod environment;
+mod lambda_response;
+pub mod reverse_proxy;
 pub mod warp_lambda;
 
 pub use api::setup_searcher_api;

@@ -76,7 +76,8 @@ pub use service::SearcherContext;
 use tantivy::DocAddress;
 
 pub use crate::client::{
-    create_search_client_from_channel, create_search_client_from_grpc_addr, SearchServiceClient,
+    create_search_client, create_search_client_from_channel, create_search_client_from_grpc_addr,
+    SearchClientConfig, SearchServiceClient,
 };
 pub use crate::cluster_client::ClusterClient;
 pub use crate::error::{parse_grpc_error, SearchError};

@@ -15,36 +15,33 @@
 // Based on https://github.com/aslamplr/warp_lambda under MIT license
 
 use core::future::Future;
-use std::collections::HashSet;
 use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::task::{Context, Poll};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context as AnyhowContext};
 use http::header::Entry;
-use lambda_http::http::response::Parts;
-use lambda_http::http::HeaderValue;
 use lambda_http::{
     lambda_runtime, Adapter, Body as LambdaBody, Error as LambdaError, Request, RequestExt,
     Response, Service,
 };
-use mime_guess::{mime, Mime};
-use once_cell::sync::Lazy;
-use tracing::{info_span, Instrument};
+use tracing::{info, info_span, Instrument};
 use warp::hyper::Body as WarpBody;
 pub use {lambda_http, warp};
+
+use crate::searcher::lambda_response::{response_hook, ConstructLambdaResponse};
 
 pub type WarpRequest = warp::http::Request<warp::hyper::Body>;
 pub type WarpResponse = warp::http::Response<warp::hyper::Body>;
 
-pub async fn run<'a, S>(service: S) -> Result<(), LambdaError>
+pub async fn run<'a, S>(service: S, storage_resolver: StorageResolver) -> Result<(), LambdaError>
 where
     S: Service<WarpRequest, Response = WarpResponse, Error = Infallible> + Send + 'a,
     S::Future: Send + 'a,
 {
-    lambda_runtime::run(Adapter::from(WarpAdapter::new(service))).await
+    lambda_runtime::run(Adapter::from(WarpAdapter::new(service, storage_resolver))).await
 }
 
 #[derive(Clone)]
@@ -54,6 +51,7 @@ where
     S::Future: Send + 'a,
 {
     warp_service: S,
+    storage_resolver: StorageResolver,
     _phantom_data: PhantomData<&'a WarpResponse>,
 }
 
@@ -62,51 +60,13 @@ where
     S: Service<WarpRequest, Response = WarpResponse, Error = Infallible>,
     S::Future: Send + 'a,
 {
-    pub fn new(warp_service: S) -> Self {
+    pub fn new(warp_service: S, storage_resolver: StorageResolver) -> Self {
         Self {
             warp_service,
+            storage_resolver,
             _phantom_data: PhantomData,
         }
     }
-}
-
-static PLAINTEXT_MIMES: Lazy<HashSet<Mime>> = Lazy::new(|| {
-    vec![
-        mime::APPLICATION_JAVASCRIPT,
-        mime::APPLICATION_JAVASCRIPT_UTF_8,
-        mime::APPLICATION_JSON,
-    ]
-    .into_iter()
-    .collect()
-});
-
-async fn warp_body_as_lambda_body(
-    warp_body: WarpBody,
-    parts: &Parts,
-) -> Result<LambdaBody, LambdaError> {
-    // Concatenate all bytes into a single buffer
-    let raw_bytes = warp::hyper::body::to_bytes(warp_body).await?;
-
-    // Attempt to determine the Content-Type
-    let content_type: Option<&HeaderValue> = parts.headers.get("Content-Type");
-    let content_encoding: Option<&HeaderValue> = parts.headers.get("Content-Encoding");
-
-    // If Content-Encoding is present, assume compression
-    // If Content-Type is not present, don't assume is a string
-    let body = if let (Some(typ), None) = (content_type, content_encoding) {
-        let typ = typ.to_str()?;
-        let m = typ.parse::<Mime>()?;
-        if PLAINTEXT_MIMES.contains(&m) || m.type_() == mime::TEXT {
-            Some(String::from_utf8(raw_bytes.to_vec()).map(LambdaBody::Text)?)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    // Not a text response, make binary
-    Ok(body.unwrap_or_else(|| LambdaBody::Binary(raw_bytes.to_vec())))
 }
 
 impl<'a, S> Service<Request> for WarpAdapter<'a, S>
@@ -156,15 +116,30 @@ where
         // Call warp service with warp request, save future
         let warp_fut = self.warp_service.call(warp_request);
 
+        let storage_resolver = self.storage_resolver.clone();
+
         // Create lambda future
         let fut = async move {
             let warp_response = warp_fut.await?;
             let (parts, res_body): (_, _) = warp_response.into_parts();
-            let body = warp_body_as_lambda_body(res_body, &parts).await?;
-            let lambda_response = Response::from_parts(parts, body);
+            let body = warp::hyper::body::to_bytes(res_body).await?.to_vec();
+
+            let response_creator = ConstructLambdaResponse::new();
+            info!("entering response_hook");
+            let modified_body = response_hook(body, &storage_resolver, response_creator)
+                .await
+                .context("response_hook failed")?;
+            info!(
+                "exited response_hook; modified_body len: {}",
+                modified_body.len()
+            );
+
+            let lambda_response = Response::from_parts(parts, LambdaBody::Binary(modified_body));
             Ok::<Self::Response, Self::Error>(lambda_response)
         }
         .instrument(info_span!("searcher request", request_id));
         Box::pin(fut)
     }
 }
+
+use quickwit_storage::StorageResolver;

@@ -36,7 +36,7 @@ mod otlp_api;
 mod rate_modulator;
 mod rest;
 mod rest_api_response;
-mod search_api;
+pub mod search_api;
 pub(crate) mod simple_list;
 pub mod tcp_listener;
 mod template_api;

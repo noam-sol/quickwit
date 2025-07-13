@@ -13,50 +13,129 @@
 // limitations under the License.
 
 use std::collections::HashSet;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
 
+use anyhow::Context;
+use bytesize::ByteSize;
 use http::Method;
+use quickwit_common::tower::Pool;
 use quickwit_config::service::QuickwitService;
-use quickwit_config::SearcherConfig;
+use quickwit_config::{NodeConfig, SearcherConfig};
 use quickwit_proto::metastore::MetastoreServiceClient;
+use quickwit_proto::search::search_service_server::SearchServiceServer;
+use quickwit_proto::tonic::transport::Server;
 use quickwit_search::{
-    ClusterClient, SearchJobPlacer, SearchService, SearchServiceClient, SearchServiceImpl,
-    SearcherContext, SearcherPool,
+    create_search_client, ClusterClient, SearchClientConfig, SearchJobPlacer, SearchService,
+    SearchServiceClient, SearchServiceImpl, SearcherContext, SearcherPool,
 };
 use quickwit_serve::lambda_search_api::*;
+use quickwit_serve::search_api::grpc_adapter::GrpcSearchAdapter;
 use quickwit_storage::StorageResolver;
 use quickwit_telemetry::payload::{QuickwitFeature, QuickwitTelemetryInfo, TelemetryEvent};
 use tracing::{error, info};
 use warp::filters::path::FullPath;
 use warp::reject::Rejection;
-use warp::Filter;
+use warp::{Filter, Reply};
 
-use crate::searcher::environment::CONFIGURATION_TEMPLATE;
-use crate::utils::load_node_config;
+use super::aws::create_grpc_interceptor;
+use crate::searcher::environment::NUM_LEAFS;
+use crate::searcher::reverse_proxy::reverse_proxy_filter;
 
-async fn create_local_search_service(
+static GRPC_SERVER_PORT: u16 = 5000;
+
+fn spawn_grpc_server_task(
+    address: SocketAddr,
+    search_service: Arc<dyn SearchService>,
+) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
+    let search_grpc_adapter = GrpcSearchAdapter::from(search_service);
+    tokio::spawn(async move {
+        Server::builder()
+            .trace_fn(|val| {
+                let content_type = val
+                    .headers()
+                    .get("content-type")
+                    .and_then(|v| v.to_str().ok());
+                info!(path=%val.uri(), content_type=?content_type, "grpc server - new request");
+                tracing::Span::current()
+            })
+            .add_service(SearchServiceServer::new(search_grpc_adapter))
+            .serve(address)
+            .await
+            .context("grpc server task exit")
+    })
+}
+
+fn spawn_grpc_interceptor_task(
+    port: u16,
+    storage_resolver: StorageResolver,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let hello = warp::any().and(create_grpc_interceptor(storage_resolver));
+
+        warp::serve(hello).run(([127, 0, 0, 1], port)).await;
+    })
+}
+
+fn spawn_leaf_search_service(
+    searcher_config: SearcherConfig,
+    metastore: MetastoreServiceClient,
+    storage_resolver: StorageResolver,
+) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
+    let searcher_context = Arc::new(SearcherContext::new(searcher_config, None));
+    let cluster_client = ClusterClient::new(SearchJobPlacer::new(SearcherPool::default()));
+    let search_service = SearchServiceImpl::new(
+        metastore.clone(),
+        storage_resolver.clone(),
+        cluster_client.clone(),
+        searcher_context.clone(),
+    );
+    let grpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), GRPC_SERVER_PORT);
+    spawn_grpc_server_task(grpc_addr, Arc::new(search_service.clone()))
+}
+
+fn spawn_node_pool(
+    storage_resolver: StorageResolver,
+) -> (
+    Pool<SocketAddr, SearchServiceClient>,
+    Vec<tokio::task::JoinHandle<()>>,
+) {
+    let mut handles = Vec::new();
+    let searcher_pool = SearcherPool::default();
+    let start_port = 6001;
+    let end_port = start_port + *NUM_LEAFS;
+    for port in start_port..end_port {
+        handles.push(spawn_grpc_interceptor_task(port, storage_resolver.clone()));
+        let socket_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
+        searcher_pool.insert(
+            socket_addr,
+            create_search_client(&SearchClientConfig {
+                grpc_addr: socket_addr,
+                max_message_size: ByteSize::mib(10),
+                timeout: Some(Duration::from_secs(500)),
+            }),
+        );
+    }
+    (searcher_pool, handles)
+}
+
+fn create_search_service_for_root_lambda(
+    searcher_pool: Pool<SocketAddr, SearchServiceClient>,
     searcher_config: SearcherConfig,
     metastore: MetastoreServiceClient,
     storage_resolver: StorageResolver,
 ) -> Arc<dyn SearchService> {
-    let searcher_pool = SearcherPool::default();
+    let searcher_context = Arc::new(SearcherContext::new(searcher_config, None));
     let search_job_placer = SearchJobPlacer::new(searcher_pool.clone());
     let cluster_client = ClusterClient::new(search_job_placer);
     // TODO configure split cache
-    let searcher_context = Arc::new(SearcherContext::new(searcher_config, None));
-    let search_service = Arc::new(SearchServiceImpl::new(
+    Arc::new(SearchServiceImpl::new(
         metastore,
         storage_resolver,
-        cluster_client.clone(),
-        searcher_context.clone(),
-    ));
-    // Add search service to pool to avoid "no available searcher nodes in the pool" error
-    let socket_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 7280u16);
-    let search_service_client =
-        SearchServiceClient::from_service(search_service.clone(), socket_addr);
-    searcher_pool.insert(socket_addr, search_service_client);
-    search_service
+        cluster_client,
+        searcher_context,
+    ))
 }
 
 fn native_api(
@@ -107,23 +186,70 @@ fn v1_searcher_api(
         })
 }
 
-pub async fn setup_searcher_api(
-) -> anyhow::Result<impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone> {
-    let (node_config, storage_resolver, metastore) =
-        load_node_config(CONFIGURATION_TEMPLATE).await?;
+fn grpc_api() -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
+    let before_hook = warp::path::full()
+        .and(warp::method())
+        .and_then(|route: FullPath, method: Method| async move {
+            info!(
+                method = method.as_str(),
+                route = route.as_str(),
+                "going into path"
+            );
+            quickwit_telemetry::send_telemetry_event(TelemetryEvent::RunCommand).await;
+            Ok::<_, std::convert::Infallible>(())
+        })
+        .untuple_one();
 
+    warp::path!("quickwit.search.SearchService" / ..)
+        .and(before_hook)
+        .and(reverse_proxy_filter(
+            "".to_string(),
+            format!("http://127.0.0.1:{GRPC_SERVER_PORT}"),
+        ))
+        .recover(log_and_forward_rejection)
+}
+
+async fn log_and_forward_rejection(rejection: Rejection) -> Result<Box<dyn Reply>, Rejection> {
+    error!(?rejection, "grpc reverse proxy caught error");
+    Err(rejection)
+}
+
+pub fn setup_searcher_api(
+    node_config: NodeConfig,
+    storage_resolver: StorageResolver,
+    metastore: MetastoreServiceClient,
+) -> (
+    impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone,
+    impl FnOnce(),
+) {
     let telemetry_info = QuickwitTelemetryInfo::new(
         HashSet::from_iter([QuickwitService::Searcher.as_str().to_string()]),
         HashSet::from_iter([QuickwitFeature::AwsLambda]),
     );
     let _telemetry_handle_opt = quickwit_telemetry::start_telemetry_loop(telemetry_info);
 
-    let search_service = create_local_search_service(
+    let leaf_grpc_server_handle = spawn_leaf_search_service(
+        node_config.searcher_config.clone(),
+        metastore.clone(),
+        storage_resolver.clone(),
+    );
+
+    let (searcher_pool, grpc_interceptor_handles) = spawn_node_pool(storage_resolver.clone());
+    let abort = move || {
+        // NOTE: not actually called by the lambda main().
+        // TODO: if used, consider to await() as well.
+        leaf_grpc_server_handle.abort();
+        for handle in grpc_interceptor_handles {
+            handle.abort();
+        }
+    };
+
+    let root_lambda_search_service = create_search_service_for_root_lambda(
+        searcher_pool,
         node_config.searcher_config,
         metastore.clone(),
         storage_resolver,
-    )
-    .await;
+    );
 
     let before_hook = warp::path::full()
         .and(warp::method())
@@ -144,8 +270,11 @@ pub async fn setup_searcher_api(
 
     let api = warp::any()
         .and(before_hook)
-        .and(v1_searcher_api(search_service, metastore))
+        .and(
+            v1_searcher_api(root_lambda_search_service, metastore) // for root lambda
+                .or(grpc_api()), // for leaf lambda
+        )
         .with(after_hook);
 
-    Ok(api)
+    (api, abort)
 }

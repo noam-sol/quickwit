@@ -34,6 +34,7 @@ package:
 	    -p quickwit-lambda \
 		--disable-optimizations \
 	    --release \
+		--features quickwit-metastore/postgres \
 	    --output-format zip \
 	    --target x86_64-unknown-linux-gnu
 	  popd

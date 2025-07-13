@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod grpc_adapter;
+pub mod grpc_adapter;
 mod rest_handler;
 
 pub use self::grpc_adapter::GrpcSearchAdapter;

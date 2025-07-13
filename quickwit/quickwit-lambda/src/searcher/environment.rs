@@ -12,7 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::env::var;
+
+use once_cell::sync::Lazy;
+use quickwit_config::NodeConfig;
+use quickwit_proto::metastore::MetastoreServiceClient;
+use quickwit_storage::StorageResolver;
+
+use crate::utils::load_node_config;
 pub(crate) const CONFIGURATION_TEMPLATE: &str = include_str!("lambda_node_config.yaml");
+
+pub static BUCKET_PAYLOADS: Lazy<String> = Lazy::new(|| {
+    var("QW_LAMBDA_BUCKET_PAYLOADS")
+        .expect("environment variable QW_LAMBDA_BUCKET_PAYLOADS should be set")
+});
+
+pub static LEAF_FUNCTION_NAME: Lazy<String> = Lazy::new(|| {
+    var("QW_LAMBDA_LEAF_FUNCTION_NAME")
+        .expect("environment variable QW_LAMBDA_LEAF_FUNCTION_NAME should be set")
+});
+
+pub static NUM_LEAFS: Lazy<u16> = Lazy::new(|| {
+    var("QW_LAMBDA_NUM_LEAFS")
+        .expect("environment variable QW_LAMBDA_NUM_LEAFS should be set")
+        .parse::<u16>()
+        .expect("environment variable QW_LAMBDA_NUM_LEAFS must be int")
+});
+
+pub async fn load_lambda_node_config(
+) -> anyhow::Result<(NodeConfig, StorageResolver, MetastoreServiceClient)> {
+    load_node_config(CONFIGURATION_TEMPLATE).await
+}
 
 #[cfg(test)]
 mod tests {

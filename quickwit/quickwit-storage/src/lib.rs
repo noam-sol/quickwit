@@ -66,11 +66,11 @@ pub use self::cache::{
     wrap_storage_with_cache, ByteRangeCache, MemorySizedCache, QuickwitCache, StorageCache,
 };
 pub use self::local_file_storage::{LocalFileStorage, LocalFileStorageFactory};
+pub use self::object_storage::{
+    parse_s3_uri, MultiPartPolicy, S3CompatibleObjectStorage, S3CompatibleObjectStorageFactory,
+};
 #[cfg(feature = "azure")]
 pub use self::object_storage::{AzureBlobStorage, AzureBlobStorageFactory};
-pub use self::object_storage::{
-    MultiPartPolicy, S3CompatibleObjectStorage, S3CompatibleObjectStorageFactory,
-};
 #[cfg(all(feature = "gcs", feature = "integration-testsuite"))]
 pub use self::opendal_storage::new_emulated_google_cloud_storage;
 #[cfg(feature = "gcs")]
