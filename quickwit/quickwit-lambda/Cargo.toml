@@ -71,4 +71,5 @@ quickwit-storage = { workspace = true }
 quickwit-telemetry = { workspace = true }
 
 [dev-dependencies]
+quickwit-storage = { workspace = true, features = ["testsuite"] }
 serial_test = { workspace = true }
