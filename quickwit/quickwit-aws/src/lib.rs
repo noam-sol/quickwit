@@ -58,7 +58,7 @@ pub async fn get_aws_config() -> &'static aws_config::SdkConfig {
                 .hyper_builder(hyper_client_builder)
                 .build(https_connector);
 
-            aws_config::defaults(BehaviorVersion::v2024_03_28())
+            aws_config::defaults(BehaviorVersion::v2025_01_17())
                 .stalled_stream_protection(StalledStreamProtectionConfig::enabled().build())
                 .http_client(hyper_client)
                 // Currently handle this ourselves so probably best for now to leave it as is.

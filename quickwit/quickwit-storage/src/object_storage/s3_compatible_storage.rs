@@ -200,7 +200,7 @@ pub async fn create_s3_client(
     }
 
     let mut s3_config = aws_sdk_s3::Config::builder()
-        .behavior_version(BehaviorVersion::v2024_03_28())
+        .behavior_version(BehaviorVersion::v2025_01_17())
         .region(region);
 
     if let Some(identity_cache) = aws_config.identity_cache() {
@@ -1034,7 +1034,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_s3_compatible_storage_relative_path() {
-        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::v2024_03_28())
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::v2025_01_17())
             .load()
             .await;
         let s3_client = S3Client::new(&sdk_config);
@@ -1087,7 +1087,7 @@ mod tests {
         ]);
         let credentials = Credentials::new("mock_key", "mock_secret", None, None, "mock_provider");
         let config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::v2024_03_28())
+            .behavior_version(BehaviorVersion::v2025_01_17())
             .region(Some(Region::new("Foo")))
             .http_client(client.clone())
             .credentials_provider(credentials)
@@ -1128,7 +1128,7 @@ mod tests {
         )]);
         let credentials = Credentials::new("mock_key", "mock_secret", None, None, "mock_provider");
         let config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::v2024_03_28())
+            .behavior_version(BehaviorVersion::v2025_01_17())
             .region(Some(Region::new("Foo")))
             .http_client(client.clone())
             .credentials_provider(credentials)
@@ -1210,7 +1210,7 @@ mod tests {
         ]);
         let credentials = Credentials::new("mock_key", "mock_secret", None, None, "mock_provider");
         let config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::v2024_03_28())
+            .behavior_version(BehaviorVersion::v2025_01_17())
             .region(Some(Region::new("Foo")))
             .http_client(client)
             .credentials_provider(credentials)
@@ -1303,7 +1303,7 @@ mod tests {
         ]);
         let credentials = Credentials::new("mock_key", "mock_secret", None, None, "mock_provider");
         let config = aws_sdk_s3::Config::builder()
-            .behavior_version(BehaviorVersion::v2024_03_28())
+            .behavior_version(BehaviorVersion::v2025_01_17())
             .region(Some(Region::new("Foo")))
             .http_client(client)
             .credentials_provider(credentials)
