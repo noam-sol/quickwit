@@ -561,7 +561,8 @@ impl From<QuickwitTextOptions> for TextOptions {
             let text_field_indexing = TextFieldIndexing::default()
                 .set_index_option(indexing_options.record)
                 .set_fieldnorms(indexing_options.fieldnorms)
-                .set_tokenizer(indexing_options.tokenizer.name());
+                .set_tokenizer(indexing_options.tokenizer.name())
+                .set_suffix(indexing_options.suffix);
 
             text_options = text_options.set_indexing_options(text_field_indexing);
         }
