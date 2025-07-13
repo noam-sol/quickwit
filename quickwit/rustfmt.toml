@@ -1,5 +1,6 @@
 ignore = [
    "**/codegen/**/*.rs",
+   "quickwit-lambda/src/searcher/reverse_proxy/*.rs",
 ]
 
 comment_width = 120
