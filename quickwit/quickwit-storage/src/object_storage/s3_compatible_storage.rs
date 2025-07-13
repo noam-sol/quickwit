@@ -292,6 +292,10 @@ impl S3CompatibleObjectStorage {
     }
 }
 
+/// Parse s3 uri into a bucket and the remainder of the path.
+///
+/// Example:
+/// s3://bucket/path/to/object -> ("bucket", "path/to/object")
 pub fn parse_s3_uri(uri: &Uri) -> Option<(String, PathBuf)> {
     static S3_URI_PTN: OnceCell<Regex> = OnceCell::new();
 
