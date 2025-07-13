@@ -76,6 +76,14 @@ pub trait Storage: fmt::Debug + Send + Sync + 'static {
         'life2: 'async_trait,
         Self: 'async_trait;
 
+    /// Copies the file associated to `Path` into a `Vec<u8>`.
+    /// See also `copy_to`.
+    async fn copy_to_vec(&self, path: &Path) -> StorageResult<Vec<u8>> {
+        let mut result = Vec::new();
+        self.copy_to(path, &mut result).await?;
+        return Ok(result);
+    }
+
     /// Downloads an entire file and writes it into a local file.
     /// `output_path` is expected to be a file path (not a directory path)
     /// without any existing file yet.

@@ -52,6 +52,7 @@ tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 unicase = "2.8.1"
+uuid = { workspace = true }
 warp = { workspace = true, features = ["compression-gzip"] }
 
 quickwit-actors = { workspace = true }

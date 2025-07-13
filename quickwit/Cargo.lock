@@ -6965,6 +6965,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "unicase",
+ "uuid",
  "warp",
 ]
 
