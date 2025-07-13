@@ -112,7 +112,7 @@ fn spawn_node_pool(
             socket_addr,
             create_search_client(&SearchClientConfig {
                 grpc_addr: socket_addr,
-                max_message_size: ByteSize::mib(10),
+                max_message_size: ByteSize::mib(30),
                 timeout: Some(Duration::from_secs(500)),
             }),
         );
