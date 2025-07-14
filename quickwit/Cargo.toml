@@ -85,6 +85,8 @@ assert-json-diff = "2"
 async-compression = { version = "0.4", features = ["tokio", "gzip"] }
 async-speed-limit = "0.4"
 async-trait = "0.1"
+aws-sdk-lambda = "1.77.0"
+aws_lambda_events = "0.15.0"
 base64 = "0.22"
 binggan = { version = "0.14" }
 bytes = { version = "1", features = ["serde"] }
@@ -137,6 +139,8 @@ indexmap = { version = "2.1.0", features = ["serde"] }
 indicatif = "0.17.3"
 itertools = "0.13"
 json_comments = "0.2"
+lambda_http = "0.8.0"
+lambda_runtime = "0.13.0"
 libz-sys = "1.1.8"
 lru = "0.12"
 lindera-core = "0.27.0"
@@ -268,6 +272,7 @@ tracing-subscriber = { version = "0.3", features = [
 ttl_cache = "0.5"
 typetag = "0.2"
 ulid = "1.1"
+unicase = "2.8.1"
 username = "0.2"
 utoipa = { version = "4.2", features = ["time", "ulid"] }
 uuid = { version = "1.10", features = ["v4", "serde", "v7"] }
