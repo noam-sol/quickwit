@@ -10,3 +10,6 @@ rustdocflags = ["--cfg", "tokio_unstable"]
 # AWS does not seem to disclose the exact CPUs they use.
 rustflags = ["-C", "target-cpu=x86-64-v2", "--cfg", "tokio_unstable"]
 
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=neoverse-v1", "--cfg", "tokio_unstable"]
+linker = "aarch64-linux-gnu-gcc"
