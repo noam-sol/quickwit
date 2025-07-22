@@ -55,16 +55,18 @@ impl SimpleIgnoreUUIDTokenStream<'_> {
 
     fn try_find_uuid_offset_to(&mut self, offset_from: usize) -> Option<usize> {
         // -1 to accommodate the already read first char by calling next().
-        if self.chars.as_str().len() >= UUID_LEN - 1 {
-            let maybe_uuid_chars = &self.text[offset_from..offset_from + UUID_LEN];
-            if is_likely_uuid(maybe_uuid_chars) {
-                let mut offset_to = 0;
-                for _ in 0..UUID_LEN - 1 {
-                    let (offset, _) = self.chars.next().unwrap();
-                    offset_to = offset;
-                }
-                return Some(offset_to + 1);
+        if self.chars.as_str().len() < UUID_LEN - 1 {
+            return None;
+        }
+
+        let maybe_uuid_chars = &self.text[offset_from..offset_from + UUID_LEN];
+        if is_likely_uuid(maybe_uuid_chars) {
+            let mut offset_to = 0;
+            for _ in 0..UUID_LEN - 1 {
+                let (offset, _) = self.chars.next().unwrap();
+                offset_to = offset;
             }
+            return Some(offset_to + 1);
         }
         None
     }
