@@ -64,16 +64,16 @@ impl SimpleIgnoreUUIDTokenStream<'_> {
         }
 
         let maybe_uuid_chars = &self.text[offset_from..(last_index + 1)];
-        if is_likely_uuid(maybe_uuid_chars) {
-            let mut offset_to = 0;
-            // -1 to accommodate the already read first char by calling next() in the caller func.
-            for _ in 0..UUID_LEN - 1 {
-                let (offset, _) = self.chars.next().unwrap();
-                offset_to = offset;
-            }
-            return Some(offset_to + 1);
+        if !is_likely_uuid(maybe_uuid_chars) {
+            return None;
         }
-        None
+        let mut offset_to = 0;
+        // -1 to accommodate the already read first char by calling next() in the caller func.
+        for _ in 0..UUID_LEN - 1 {
+            let (offset, _) = self.chars.next().unwrap();
+            offset_to = offset;
+        }
+        Some(offset_to + 1)
     }
 }
 
