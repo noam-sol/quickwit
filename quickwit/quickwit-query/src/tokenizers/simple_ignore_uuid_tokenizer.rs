@@ -59,7 +59,11 @@ impl SimpleIgnoreUUIDTokenStream<'_> {
             return None;
         }
 
-        let maybe_uuid_chars = &self.text[offset_from..offset_from + UUID_LEN];
+        if !self.text.is_char_boundary(last_index + 1) {
+            return None;
+        }
+
+        let maybe_uuid_chars = &self.text[offset_from..(last_index + 1)];
         if is_likely_uuid(maybe_uuid_chars) {
             let mut offset_to = 0;
             // -1 to accommodate the already read first char by calling next() in the caller func.
@@ -171,5 +175,21 @@ mod tests {
         assert_token(&tokens[0], 0, "Hello", 0, 5);
         assert_token(&tokens[1], 1, "123e4567-e89b-12d3-a456-426614174000", 7, 43);
         assert_token(&tokens[2], 2, "Hi", 44, 46);
+    }
+
+    #[test]
+    fn test_unicode_should_not_be_accessed_within_the_char_boundary() {
+        // A UUID is 36 chars long.
+        // In this test, the 36th char is unicode with size of 3 bytes.
+        // If we try to slice the string in 0..37 it will panic - as byte index 36 is not a char
+        // boundary.
+        let tokens = token_stream_helper("35/chars/then/unicode/AAAAAAAAAAAA/发");
+        assert_eq!(tokens.len(), 6);
+        assert_token(&tokens[0], 0, "35", 0, 2);
+        assert_token(&tokens[1], 1, "chars", 3, 8);
+        assert_token(&tokens[2], 2, "then", 9, 13);
+        assert_token(&tokens[3], 3, "unicode", 14, 21);
+        assert_token(&tokens[4], 4, "AAAAAAAAAAAA", 22, 34);
+        assert_token(&tokens[5], 5, "发", 35, 38);
     }
 }
