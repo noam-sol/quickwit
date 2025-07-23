@@ -407,7 +407,7 @@ impl TextIndexingOptions {
     ) {
         let (indexed, tokenizer, record, fieldorm, suffix) =
             TextIndexingOptions::to_parts_text(this);
-        (indexed, tokenizer, record, fieldorm, suffix)
+        (indexed, tokenizer, record, suffix, fieldorm)
     }
 
     fn to_parts_concatenate(
@@ -1677,6 +1677,44 @@ mod tests {
                 "tokenizer": "default",
                 "fieldnorms": false,
                 "fast": false,
+            })
+        );
+    }
+
+    #[test]
+    fn test_reserialize_fieldnorms_field() {
+        let raw = r#"{"fieldnorms": true}"#;
+        let parsed = serde_json::from_str::<QuickwitJsonOptions>(raw).unwrap();
+        let reserialized = serde_json::to_value(parsed).unwrap();
+        assert_eq!(
+            reserialized,
+            json!({
+                    "fieldnorms": true,
+                    "expand_dots": true,
+                    "fast": false,
+                    "indexed": true,
+                    "record": "basic",
+                    "stored": true,
+                    "tokenizer": "raw"
+            })
+        );
+    }
+
+    #[test]
+    fn test_reserialize_suffix_field() {
+        let raw = r#"{"suffix": true}"#;
+        let parsed = serde_json::from_str::<QuickwitJsonOptions>(raw).unwrap();
+        let reserialized = serde_json::to_value(parsed).unwrap();
+        assert_eq!(
+            reserialized,
+            json!({
+                    "suffix": true,
+                    "expand_dots": true,
+                    "fast": false,
+                    "indexed": true,
+                    "record": "basic",
+                    "stored": true,
+                    "tokenizer": "raw"
             })
         );
     }
