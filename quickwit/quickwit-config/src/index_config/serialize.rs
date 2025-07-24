@@ -59,9 +59,21 @@ pub fn load_index_config_from_user_config(
     config_content: &[u8],
     default_index_root_uri: &Uri,
 ) -> anyhow::Result<IndexConfig> {
+    load_index_config_from_user_config_inner(
+        config_format,
+        config_content,
+        Some(default_index_root_uri),
+    )
+}
+
+fn load_index_config_from_user_config_inner(
+    config_format: ConfigFormat,
+    config_content: &[u8],
+    default_index_root_uri: Option<&Uri>,
+) -> anyhow::Result<IndexConfig> {
     let versioned_index_config: VersionedIndexConfig = config_format.parse(config_content)?;
     let index_config_for_serialization: IndexConfigForSerialization = versioned_index_config.into();
-    index_config_for_serialization.build_and_validate(Some(default_index_root_uri))
+    index_config_for_serialization.build_and_validate(default_index_root_uri)
 }
 
 /// Parses and validates an [`IndexConfig`] update.
