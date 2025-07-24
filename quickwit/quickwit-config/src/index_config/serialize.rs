@@ -87,14 +87,12 @@ pub fn load_index_config_update(
     index_config_bytes: &[u8],
     current_index_config: &IndexConfig,
 ) -> anyhow::Result<IndexConfig> {
-    let current_index_parent_dir = &current_index_config
-        .index_uri
-        .parent()
-        .expect("index URI should have a parent");
-    let mut new_index_config = load_index_config_from_user_config(
+    let current_index_parent_dir = current_index_config.index_uri.parent();
+
+    let mut new_index_config = load_index_config_from_user_config_inner(
         config_format,
         index_config_bytes,
-        current_index_parent_dir,
+        current_index_parent_dir.as_ref(),
     )?;
     ensure!(
         current_index_config.index_id == new_index_config.index_id,
@@ -425,6 +423,52 @@ mod test {
             .unwrap_err();
             assert!(format!("{:?}", load_error).contains("`index_uri` cannot be updated"));
         }
+    }
+
+    #[test]
+    fn test_update_index_config_when_index_uri_has_no_parent() {
+        let original_config_yaml = r#"
+        version: 0.8
+        index_uri: s3://mybucket
+        index_id: hdfs-logs
+        doc_mapping:
+            mode: dynamic
+            timestamp_field: timestamp
+            field_mappings:
+                - name: timestamp
+                  type: datetime
+                  fast: true
+        "#;
+        let original_config: IndexConfig = load_index_config_from_user_config(
+            ConfigFormat::Yaml,
+            original_config_yaml.as_bytes(),
+            &Uri::for_test("s3://default-bucket"),
+        )
+        .unwrap();
+
+        let updated_config_yaml = r#"
+        version: 0.8
+        index_uri: s3://mybucket
+        index_id: hdfs-logs
+        doc_mapping:
+            mode: dynamic
+            timestamp_field: timestamp
+            field_mappings:
+                - name: timestamp
+                  type: datetime
+                  fast: true
+                - name: eventID
+                  type: text
+                  tokenizer: raw
+        "#;
+
+        let updated_config = load_index_config_update(
+            ConfigFormat::Yaml,
+            updated_config_yaml.as_bytes(),
+            &original_config,
+        )
+        .unwrap();
+        assert_eq!(updated_config.index_uri.as_str(), "s3://mybucket");
     }
 
     #[test]
