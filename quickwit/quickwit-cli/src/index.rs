@@ -614,6 +614,8 @@ pub struct IndexStats {
     pub num_published_splits: usize,
     pub size_published_splits: ByteSize,
     pub num_published_docs: u64,
+    pub num_staged_splits: usize,
+    pub num_marked_for_deletion_splits: usize,
     pub size_published_docs_uncompressed: ByteSize,
     pub timestamp_field_name: Option<String>,
     pub timestamp_range: Option<(i64, i64)>,
@@ -638,6 +640,8 @@ impl Tabled for IndexStats {
             self.size_published_docs_uncompressed.to_string(),
             separate_thousands(self.num_published_splits),
             self.size_published_splits.to_string(),
+            separate_thousands(self.num_staged_splits),
+            separate_thousands(self.num_marked_for_deletion_splits),
             display_option_in_table(&self.timestamp_field_name),
             display_timestamp(&self.timestamp_range.map(|(start, _end)| start)),
             display_timestamp(&self.timestamp_range.map(|(_start, end)| end)),
@@ -655,6 +659,8 @@ impl Tabled for IndexStats {
             "Size of published documents (uncompressed)",
             "Number of published splits",
             "Size of published splits",
+            "Number of staged splits",
+            "Number of marked for deletion splits",
             "Timestamp field",
             "Timestamp range start",
             "Timestamp range end",
@@ -704,8 +710,8 @@ impl IndexStats {
         index_metadata: IndexMetadata,
         splits: Vec<Split>,
     ) -> anyhow::Result<Self> {
-        let published_splits: Vec<Split> = splits
-            .into_iter()
+        let published_splits: Vec<&Split> = splits
+            .iter()
             .filter(|split| split.split_state == SplitState::Published)
             .collect();
         let splits_num_docs = published_splits
@@ -713,6 +719,16 @@ impl IndexStats {
             .map(|split| split.split_metadata.num_docs as u64)
             .sorted()
             .collect_vec();
+
+        let staged_splits: Vec<&Split> = splits
+            .iter()
+            .filter(|split| split.split_state == SplitState::Staged)
+            .collect();
+
+        let marked_for_deletion_splits: Vec<&Split> = splits
+            .iter()
+            .filter(|split| split.split_state == SplitState::MarkedForDeletion)
+            .collect();
 
         let total_num_docs = splits_num_docs.iter().sum::<u64>();
 
@@ -767,6 +783,8 @@ impl IndexStats {
             index_uri: index_config.index_uri.clone(),
             num_published_splits: published_splits.len(),
             size_published_splits: ByteSize(total_num_bytes),
+            num_staged_splits: staged_splits.len(),
+            num_marked_for_deletion_splits: marked_for_deletion_splits.len(),
             num_published_docs: total_num_docs,
             size_published_docs_uncompressed: ByteSize(total_uncompressed_num_bytes),
             timestamp_field_name: index_config.doc_mapping.timestamp_field,
@@ -1225,6 +1243,8 @@ mod test {
         assert_eq!(index_stats.index_id, index_id);
         assert_eq!(index_stats.index_uri.as_str(), index_uri);
         assert_eq!(index_stats.num_published_splits, 1);
+        assert_eq!(index_stats.num_marked_for_deletion_splits, 1);
+        assert_eq!(index_stats.num_staged_splits, 0);
         assert_eq!(index_stats.size_published_splits, ByteSize::mb(15));
         assert_eq!(index_stats.num_published_docs, 100_000);
         assert_eq!(
