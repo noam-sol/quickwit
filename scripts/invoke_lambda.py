@@ -64,11 +64,11 @@ def invoke_lambda(lambda_name, index_id: str, query: str):
 
 def main():
     parser = argparse.ArgumentParser(description='Invoke QuickWit Lambda function')
-    parser.add_argument('index_id')
-    parser.add_argument('query')
+    parser.add_argument('--index', required=True)
+    parser.add_argument('--query', required=True)
     args = parser.parse_args()
     
-    invoke_lambda(LAMBDA_NAME, args.index_id, args.query)
+    invoke_lambda(LAMBDA_NAME, args.index, args.query)
 
 
 if __name__ == "__main__":
