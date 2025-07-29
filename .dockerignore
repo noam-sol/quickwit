@@ -1,8 +1,12 @@
 **/*.md
 **/*.txt
 **/.*
+!**/.cargo
 **/build
 **/Dockerfile
+**/*.Dockerfile
+**/build-with-docker.sh
+lambda-out
 **/node_modules
 **/qwdata
 **/target

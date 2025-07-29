@@ -11,6 +11,9 @@ INDEXER_PACKAGE_FILE=quickwit-lambda-indexer-$(QW_LAMBDA_VERSION)-x86_64.zip
 export SEARCHER_PACKAGE_PATH=cdk.out/$(SEARCHER_PACKAGE_FILE)
 export INDEXER_PACKAGE_PATH=cdk.out/$(INDEXER_PACKAGE_FILE)
 
+FORCE_DISABLE_GIT_FETCH_WITH_CLI?=false
+CARGO_TARGET_DIR?=../../quickwit/target
+
 check-env:
 ifndef CDK_ACCOUNT
 	$(error CDK_ACCOUNT is undefined)
@@ -23,37 +26,22 @@ endif
 # - Download by default, the version can be set with QW_LAMBDA_VERSION
 # - To build locally, set QW_LAMBDA_BUILD=1
 package:
-	mkdir -p cdk.out
-	if [ "$${QW_LAMBDA_BUILD:-0}" = "1" ]
-	then
-	  pushd ../../quickwit/
-	  rustc --version
-	  # TODO: remove --disable-optimizations when upgrading to a release containing
-	  # https://github.com/cargo-lambda/cargo-lambda/issues/649 (> 1.2.1)
-	  cargo lambda build \
-	    -p quickwit-lambda \
-		--disable-optimizations \
-	    --release \
-		--features quickwit-metastore/postgres \
-	    --output-format zip \
-	    --target x86_64-unknown-linux-gnu
-	  popd
-	  cp -u ../../quickwit/target/lambda/searcher/bootstrap.zip $(SEARCHER_PACKAGE_PATH)
-	  cp -u ../../quickwit/target/lambda/indexer/bootstrap.zip $(INDEXER_PACKAGE_PATH)
-	else
-	  if ! [ -f $(SEARCHER_PACKAGE_PATH) ]; then
-	  	echo "Downloading package $(PACKAGE_BASE_URL)$(SEARCHER_PACKAGE_FILE)"
-	    curl --fail -C - -Ls -o $(SEARCHER_PACKAGE_PATH) $(PACKAGE_BASE_URL)$(SEARCHER_PACKAGE_FILE)
-	  else
-	  	echo "Using cached package $(SEARCHER_PACKAGE_PATH)"
-	  fi
-	  if ! [ -f $(INDEXER_PACKAGE_PATH) ]; then
-	  	echo "Downloading package $(PACKAGE_BASE_URL)$(INDEXER_PACKAGE_FILE)"
-	  	curl --fail -C - -Ls -o $(INDEXER_PACKAGE_PATH) $(PACKAGE_BASE_URL)$(INDEXER_PACKAGE_FILE)
-	  else
-	  	echo "Using cached package $(INDEXER_PACKAGE_PATH)"
-	  fi
-	fi
+	pushd ../../quickwit/
+	rustc --version
+	# TODO: remove --disable-optimizations when upgrading to a release containing
+	# https://github.com/cargo-lambda/cargo-lambda/issues/649 (> 1.2.1)
+	cargo lambda build \
+	-p quickwit-lambda \
+	--disable-optimizations \
+	--release \
+	--features quickwit-metastore/postgres \
+	--output-format zip \
+	$(if $(filter true,$(FORCE_DISABLE_GIT_FETCH_WITH_CLI)),--config net.git-fetch-with-cli=false,) \
+	--target x86_64-unknown-linux-gnu \
+	--target-dir $(CARGO_TARGET_DIR)
+	popd
+	cp -u $(CARGO_TARGET_DIR)/lambda/searcher/bootstrap.zip $(SEARCHER_PACKAGE_PATH)
+	cp -u $(CARGO_TARGET_DIR)/lambda/indexer/bootstrap.zip $(INDEXER_PACKAGE_PATH)
 
 indexer-package-path:
 	echo -n $(INDEXER_PACKAGE_PATH)

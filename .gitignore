@@ -10,6 +10,7 @@ quickwit/quickwit-ui/package-lock.json
 
 TODO.md
 QUESTIONS.txt
+lambda-out/**
 
 
 # Remove Cargo.lock from gitignore if creating an executable, leave it for libraries
