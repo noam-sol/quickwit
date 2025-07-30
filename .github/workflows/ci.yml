@@ -66,6 +66,10 @@ jobs:
           echo "${{ secrets.TANTIVY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - name: Set up tantivy SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TANTIVY_SSH_KEY }}
       # The following step is just meant to install rustup actually.
       # The next one installs the correct toolchain.
       - name: Install rustup
@@ -126,6 +130,10 @@ jobs:
           echo "${{ secrets.TANTIVY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - name: Set up tantivy SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TANTIVY_SSH_KEY }}
       - name: Install Ubuntu packages
         if: always() && steps.modified.outputs.rust_src == 'true'
         run: sudo apt-get -y install protobuf-compiler python3 python3-pip
