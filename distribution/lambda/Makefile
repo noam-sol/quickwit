@@ -11,7 +11,6 @@ INDEXER_PACKAGE_FILE=quickwit-lambda-indexer-$(QW_LAMBDA_VERSION)-x86_64.zip
 export SEARCHER_PACKAGE_PATH=cdk.out/$(SEARCHER_PACKAGE_FILE)
 export INDEXER_PACKAGE_PATH=cdk.out/$(INDEXER_PACKAGE_FILE)
 
-FORCE_DISABLE_GIT_FETCH_WITH_CLI?=false
 CARGO_TARGET_DIR?=../../quickwit/target
 
 check-env:
@@ -36,7 +35,6 @@ package:
 	--release \
 	--features quickwit-metastore/postgres \
 	--output-format zip \
-	$(if $(filter true,$(FORCE_DISABLE_GIT_FETCH_WITH_CLI)),--config net.git-fetch-with-cli=false,) \
 	--target x86_64-unknown-linux-gnu \
 	--target-dir $(CARGO_TARGET_DIR)
 	popd

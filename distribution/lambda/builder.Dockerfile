@@ -41,7 +41,6 @@ COPY --from=ui-builder /quickwit/quickwit-ui/build /tmp/docker-build/quickwit/qu
 
 RUN mkdir /lambda-out
 
-ENV FORCE_DISABLE_GIT_FETCH_WITH_CLI=true
 RUN --mount=type=ssh \
     --mount=type=cache,target=$CARGO_TARGET_DIR \
     --mount=type=cache,target=$CARGO_HOME/registry \
