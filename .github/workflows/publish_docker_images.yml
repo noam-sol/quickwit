@@ -127,5 +127,5 @@ jobs:
         uses: Noelware/docker-manifest-action@v1
         with:
           inputs: ${{ steps.meta.outputs.tags }}-amd64,${{ steps.meta.outputs.tags }}-arm64
-          tags: ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:test-${{ github.sha }}
+          tags: ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:${{ github.event_name == 'pull_request' && 'test' || 'main' }}-${{ github.sha }}
           push: ${{ github.event_name != 'pull_request' }}
