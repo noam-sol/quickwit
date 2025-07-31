@@ -169,17 +169,13 @@ fn index_api(
     get_index_metadata_handler(metastore)
 }
 
-fn v1_searcher_api(
+fn searcher_api(
     search_service: Arc<dyn SearchService>,
     metastore: MetastoreServiceClient,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
-    warp::path!("api" / "v1" / ..)
-        .and(
-            native_api(search_service.clone())
-                .or(es_compat_api(search_service, metastore.clone()))
-                .or(index_api(metastore)),
-        )
-        .with(warp::filters::compression::gzip())
+    es_compat_api(search_service.clone(), metastore.clone())
+        .or(index_api(metastore))
+        .or(warp::path!("api" / "v1" / ..).and(native_api(search_service)))
         .recover(|rejection| {
             error!(?rejection, "request rejected");
             recover_fn(rejection)
@@ -271,7 +267,7 @@ pub fn setup_searcher_api(
     let api = warp::any()
         .and(before_hook)
         .and(
-            v1_searcher_api(root_lambda_search_service, metastore) // for root lambda
+            searcher_api(root_lambda_search_service, metastore) // for root lambda
                 .or(grpc_api()), // for leaf lambda
         )
         .with(after_hook);
