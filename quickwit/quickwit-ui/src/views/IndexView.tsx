@@ -92,7 +92,8 @@ function IndexView() {
               <Tab label="Indexing settings" value="4" />
               <Tab label="Search settings" value="5" />
               <Tab label="Retention settings" value="6" />
-              <Tab label="Splits" value="7" />
+              <Tab label="Storage Credentials" value="7" />
+              <Tab label="Splits" value="8" />
             </TabList>
           </Box>
           <CustomTabPanel value="1">
@@ -114,6 +115,9 @@ function IndexView() {
             <JsonEditor content={index.metadata.index_config.retention || {}} resizeOnMount={false} />
           </CustomTabPanel>
           <CustomTabPanel value="7">
+            <JsonEditor content={index.metadata.index_config.storage_credentials || {}} resizeOnMount={false} />
+          </CustomTabPanel>
+          <CustomTabPanel value="8">
             <JsonEditor content={index.splits} resizeOnMount={false} />
           </CustomTabPanel>
         </TabContext>

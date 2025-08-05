@@ -212,6 +212,7 @@ export type IndexConfig = {
   indexing_settings: object;
   search_settings: object;
   retention: object;
+  storage_credentials: object;
 }
 
 export type IndexMetadata = {
@@ -236,6 +237,7 @@ export const EMPTY_INDEX_METADATA: IndexMetadata = {
     indexing_settings: {},
     search_settings: {},
     retention: {},
+    storage_credentials: {}
   },
   checkpoint: {},
   sources: undefined,
