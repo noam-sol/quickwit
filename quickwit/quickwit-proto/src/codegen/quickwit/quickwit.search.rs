@@ -280,6 +280,9 @@ pub struct S3StorageCredentials {
     /// Optional external ID to use when assuming the role
     #[prost(string, optional, tag = "2")]
     pub external_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// Optional KMS Key ID to use when SSE-KMS is used
+    #[prost(string, optional, tag = "3")]
+    pub kms_key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Storage credentials for accessing storage services
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

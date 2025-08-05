@@ -127,9 +127,13 @@ impl StorageFactory for S3CompatibleObjectStorageFactory {
             .get_or_create_client(role_arn_opt, external_id_opt)
             .await?;
 
-        let storage =
-            S3CompatibleObjectStorage::from_uri_and_client(&self.storage_config, uri, s3_client)
-                .await?;
+        let storage = S3CompatibleObjectStorage::from_uri_and_client(
+            &self.storage_config,
+            uri,
+            s3_client,
+            Some(storage_credentials),
+        )
+        .await?;
 
         Ok(Arc::new(DebouncedStorage::new(storage)))
     }

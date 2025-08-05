@@ -333,6 +333,9 @@ message S3StorageCredentials {
 
   // Optional external ID to use when assuming the role
   optional string external_id = 2;
+
+  // Optional KMS Key ID to use when SSE-KMS is used
+  optional string kms_key_id = 3;
 }
 
 // Storage credentials for accessing storage services

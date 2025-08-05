@@ -1803,6 +1803,7 @@ pub fn convert_config_credentials_to_proto(
         .map(|s3_creds| S3StorageCredentials {
             role_arn: s3_creds.role_arn.clone(),
             external_id: s3_creds.external_id.clone(),
+            kms_key_id: s3_creds.kms_key_id.clone(),
         });
 
     ProtoStorageCredentials { s3: s3_credentials }
@@ -1828,6 +1829,7 @@ pub fn proto_storage_to_config_credentials(
                 s3: Some(quickwit_config::S3StorageCredentials {
                     role_arn: s3_proto.role_arn.clone(),
                     external_id: s3_proto.external_id.clone(),
+                    kms_key_id: s3_proto.kms_key_id.clone(),
                 }),
             };
         }

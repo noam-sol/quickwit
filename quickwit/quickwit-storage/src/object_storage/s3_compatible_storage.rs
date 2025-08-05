@@ -28,7 +28,9 @@ use aws_sdk_s3::operation::delete_objects::DeleteObjectsOutput;
 use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::builders::ObjectIdentifierBuilder;
-use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart, Delete, ObjectIdentifier};
+use aws_sdk_s3::types::{
+    CompletedMultipartUpload, CompletedPart, Delete, ObjectIdentifier, ServerSideEncryption,
+};
 use aws_sdk_s3::Client as S3Client;
 use base64::prelude::{Engine, BASE64_STANDARD};
 use futures::{stream, StreamExt};
@@ -38,7 +40,7 @@ use quickwit_aws::retry::{aws_retry, AwsRetryable};
 use quickwit_common::retry::{Retry, RetryParams};
 use quickwit_common::uri::Uri;
 use quickwit_common::{chunk_range, into_u64_range};
-use quickwit_config::S3StorageConfig;
+use quickwit_config::{S3StorageConfig, StorageCredentials};
 use regex::Regex;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, ReadBuf};
 use tokio::sync::Semaphore;
@@ -79,6 +81,7 @@ impl<T: AsyncRead + Send + Unpin> AsyncRead for S3AsyncRead<T> {
 /// S3-compatible object storage implementation.
 pub struct S3CompatibleObjectStorage {
     s3_client: S3Client,
+    s3_storage_credentials: Option<StorageCredentials>,
     uri: Uri,
     bucket: String,
     prefix: PathBuf,
@@ -239,7 +242,7 @@ impl S3CompatibleObjectStorage {
         external_id_opt: Option<String>,
     ) -> Result<Self, StorageResolverError> {
         let s3_client = create_s3_client(s3_storage_config, role_arn_opt, external_id_opt).await;
-        Self::from_uri_and_client(s3_storage_config, uri, s3_client).await
+        Self::from_uri_and_client(s3_storage_config, uri, s3_client, None).await
     }
 
     /// Creates an object storage given a region, an uri and an S3 client.
@@ -247,6 +250,7 @@ impl S3CompatibleObjectStorage {
         s3_storage_config: &S3StorageConfig,
         uri: &Uri,
         s3_client: S3Client,
+        s3_storage_credentials: Option<&StorageCredentials>,
     ) -> Result<Self, StorageResolverError> {
         let (bucket, prefix) = parse_s3_uri(uri).ok_or_else(|| {
             let message = format!("failed to extract bucket name from S3 URI: {uri}");
@@ -255,8 +259,10 @@ impl S3CompatibleObjectStorage {
         let retry_params = RetryParams::aggressive();
         let disable_multi_object_delete = s3_storage_config.disable_multi_object_delete;
         let disable_multipart_upload = s3_storage_config.disable_multipart_upload;
+
         Ok(Self {
             s3_client,
+            s3_storage_credentials: s3_storage_credentials.cloned(),
             uri: uri.clone(),
             bucket,
             prefix,
@@ -274,6 +280,7 @@ impl S3CompatibleObjectStorage {
     pub fn with_prefix(self, prefix: PathBuf) -> Self {
         Self {
             s3_client: self.s3_client,
+            s3_storage_credentials: None,
             uri: self.uri,
             bucket: self.bucket,
             prefix,
@@ -377,21 +384,32 @@ impl S3CompatibleObjectStorage {
             .object_storage_upload_num_bytes
             .inc_by(len);
 
-        self.s3_client
+        let mut put_object = self
+            .s3_client
             .put_object()
             .bucket(bucket)
             .key(key)
             .body(body)
-            .content_length(len as i64)
-            .send()
-            .await
-            .map_err(|sdk_error| {
-                if sdk_error.is_retryable() {
-                    Retry::Transient(StorageError::from(sdk_error))
-                } else {
-                    Retry::Permanent(StorageError::from(sdk_error))
-                }
-            })?;
+            .content_length(len as i64);
+
+        if let Some(kms_key_id) = self
+            .s3_storage_credentials
+            .as_ref()
+            .and_then(|creds| creds.s3.as_ref())
+            .and_then(|s3| s3.kms_key_id.as_ref())
+        {
+            put_object = put_object
+                .server_side_encryption(ServerSideEncryption::AwsKms)
+                .ssekms_key_id(kms_key_id.clone());
+        }
+
+        put_object.send().await.map_err(|sdk_error| {
+            if sdk_error.is_retryable() {
+                Retry::Transient(StorageError::from(sdk_error))
+            } else {
+                Retry::Permanent(StorageError::from(sdk_error))
+            }
+        })?;
         Ok(())
     }
 
@@ -1044,6 +1062,7 @@ mod tests {
 
         let mut s3_storage = S3CompatibleObjectStorage {
             s3_client,
+            s3_storage_credentials: None,
             uri,
             bucket,
             prefix,
@@ -1099,6 +1118,7 @@ mod tests {
 
         let s3_storage = S3CompatibleObjectStorage {
             s3_client,
+            s3_storage_credentials: None,
             uri,
             bucket,
             prefix,
@@ -1140,6 +1160,7 @@ mod tests {
 
         let s3_storage = S3CompatibleObjectStorage {
             s3_client,
+            s3_storage_credentials: None,
             uri,
             bucket,
             prefix,
@@ -1222,6 +1243,7 @@ mod tests {
 
         let s3_storage = S3CompatibleObjectStorage {
             s3_client,
+            s3_storage_credentials: None,
             uri,
             bucket,
             prefix,
@@ -1315,6 +1337,7 @@ mod tests {
 
         let s3_storage = S3CompatibleObjectStorage {
             s3_client,
+            s3_storage_credentials: None,
             uri,
             bucket,
             prefix,

@@ -280,6 +280,8 @@ pub struct S3StorageCredentials {
     pub role_arn: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kms_key_id: Option<String>,
 }
 
 impl StorageCredentials {
@@ -302,6 +304,16 @@ impl StorageCredentials {
             return Err(anyhow::anyhow!(
                 "S3 external ID can only be used with role ARN, but no role ARN was provided"
             ));
+        }
+
+        if let Some(kms_key_id) = &s3_creds.kms_key_id {
+            if !kms_key_id.starts_with("arn:aws:kms:") {
+                return Err(anyhow::anyhow!(
+                    "Invalid KMS ARN format: {}. Expected format: \
+                     arn:aws:kms:REGION:ACCOUNT_ID:key/ID",
+                    kms_key_id
+                ));
+            }
         }
 
         Ok(())
@@ -606,6 +618,7 @@ mod tests {
             s3: Some(S3StorageCredentials {
                 role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
                 external_id: None,
+                kms_key_id: None,
             }),
         };
         assert!(storage_credentials.validate().is_ok());
@@ -615,6 +628,7 @@ mod tests {
             s3: Some(S3StorageCredentials {
                 role_arn: Some("invalid-role-arn".to_string()),
                 external_id: None,
+                kms_key_id: None,
             }),
         };
         let error = storage_credentials.validate().unwrap_err();
@@ -624,11 +638,12 @@ mod tests {
         let storage_credentials = StorageCredentials { s3: None };
         assert!(storage_credentials.validate().is_ok());
 
-        // Valid role ARN with external ID (valid)
+        // Valid role ARN with external ID and kms key id (valid)
         let storage_credentials = StorageCredentials {
             s3: Some(S3StorageCredentials {
                 role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
                 external_id: Some("my-external-id".to_string()),
+                kms_key_id: Some("arn:aws:kms:us-east-1:123456789012/key".to_string()),
             }),
         };
         assert!(storage_credentials.validate().is_ok());
@@ -638,19 +653,31 @@ mod tests {
             s3: Some(S3StorageCredentials {
                 role_arn: None,
                 external_id: Some("my-external-id".to_string()),
+                kms_key_id: None,
             }),
         };
         let error = storage_credentials.validate().unwrap_err();
         assert!(error
             .to_string()
             .contains("S3 external ID can only be used with role ARN"));
+
+        // Invalid KMS Key ID
+        let storage_credentials = StorageCredentials {
+            s3: Some(S3StorageCredentials {
+                role_arn: None,
+                external_id: None,
+                kms_key_id: Some("invalid-kms-key-id".to_string()),
+            }),
+        };
+        let error = storage_credentials.validate().unwrap_err();
+        assert!(error.to_string().contains("Invalid KMS ARN format"));
     }
 
     fn get_index_config_filepath(index_config_filename: &str) -> String {
         format!(
             "{}/resources/tests/index_config/{}",
             env!("CARGO_MANIFEST_DIR"),
-            index_config_filename
+            index_config_filename,
         )
     }
 
