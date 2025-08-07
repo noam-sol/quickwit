@@ -11,7 +11,6 @@ INDEXER_PACKAGE_FILE=quickwit-lambda-indexer-$(QW_LAMBDA_VERSION)-x86_64.zip
 export SEARCHER_PACKAGE_PATH=cdk.out/$(SEARCHER_PACKAGE_FILE)
 export INDEXER_PACKAGE_PATH=cdk.out/$(INDEXER_PACKAGE_FILE)
 
-CARGO_TARGET_DIR?=../../quickwit/target
 
 check-env:
 ifndef CDK_ACCOUNT
@@ -36,10 +35,7 @@ package:
 	--features quickwit-metastore/postgres \
 	--output-format zip \
 	--target x86_64-unknown-linux-gnu \
-	--target-dir $(CARGO_TARGET_DIR)
 	popd
-	cp -u $(CARGO_TARGET_DIR)/lambda/searcher/bootstrap.zip $(SEARCHER_PACKAGE_PATH)
-	cp -u $(CARGO_TARGET_DIR)/lambda/indexer/bootstrap.zip $(INDEXER_PACKAGE_PATH)
 
 indexer-package-path:
 	echo -n $(INDEXER_PACKAGE_PATH)
