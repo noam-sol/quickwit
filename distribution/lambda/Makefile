@@ -34,7 +34,7 @@ package:
 	--release \
 	--features quickwit-metastore/postgres \
 	--output-format zip \
-	--target x86_64-unknown-linux-gnu \
+	--target x86_64-unknown-linux-gnu
 	popd
 
 indexer-package-path:
