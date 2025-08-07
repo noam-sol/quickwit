@@ -24,6 +24,7 @@ endif
 # - Download by default, the version can be set with QW_LAMBDA_VERSION
 # - To build locally, set QW_LAMBDA_BUILD=1
 package:
+	mkdir -p cdk.out
 	pushd ../../quickwit/
 	rustc --version
 	# TODO: remove --disable-optimizations when upgrading to a release containing
@@ -36,6 +37,8 @@ package:
 	--output-format zip \
 	--target x86_64-unknown-linux-gnu
 	popd
+	cp -u ../../quickwit/target/lambda/searcher/bootstrap.zip $(SEARCHER_PACKAGE_PATH)
+	cp -u ../../quickwit/target/lambda/indexer/bootstrap.zip $(INDEXER_PACKAGE_PATH)
 
 indexer-package-path:
 	echo -n $(INDEXER_PACKAGE_PATH)
