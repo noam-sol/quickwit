@@ -13,16 +13,10 @@
 // limitations under the License.
 
 use quickwit_lambda::logger;
-use quickwit_lambda::searcher::environment::load_lambda_node_config;
-use quickwit_lambda::searcher::{setup_searcher_api, warp_lambda};
+use quickwit_lambda::searcher::warp_lambda;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     logger::setup_lambda_tracer(tracing::Level::INFO)?;
-    let (node_config, storage_resolver, metastore) = load_lambda_node_config().await?;
-    let (routes, _) = setup_searcher_api(node_config, storage_resolver.clone(), metastore); // ignore abort() as lambda dies anyway.
-    let warp_service = warp::service(routes);
-    warp_lambda::run(warp_service, storage_resolver)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))
+    warp_lambda::run().await.map_err(|e| anyhow::anyhow!(e))
 }

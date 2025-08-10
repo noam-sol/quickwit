@@ -15,7 +15,6 @@
 // Based on https://github.com/aslamplr/warp_lambda under MIT license
 
 use core::future::Future;
-use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -38,44 +37,16 @@ use crate::searcher::setup_searcher_api;
 pub type WarpRequest = warp::http::Request<warp::hyper::Body>;
 pub type WarpResponse = warp::http::Response<warp::hyper::Body>;
 
-pub async fn run<'a, S>(service: S, storage_resolver: StorageResolver) -> Result<(), LambdaError>
-where
-    S: Service<WarpRequest, Response = WarpResponse, Error = Infallible> + Send + 'a,
-    S::Future: Send + 'a,
-{
-    lambda_runtime::run(Adapter::from(WarpAdapter::new(service, storage_resolver))).await
+pub async fn run() -> Result<(), LambdaError> {
+    lambda_runtime::run(Adapter::from(WarpAdapter::default())).await
 }
 
-#[derive(Clone)]
-pub struct WarpAdapter<'a, S>
-where
-    S: Service<WarpRequest, Response = WarpResponse, Error = Infallible>,
-    S::Future: Send + 'a,
-{
-    warp_service: S,
-    storage_resolver: StorageResolver,
+#[derive(Clone, Default)]
+pub struct WarpAdapter<'a> {
     _phantom_data: PhantomData<&'a WarpResponse>,
 }
 
-impl<'a, S> WarpAdapter<'a, S>
-where
-    S: Service<WarpRequest, Response = WarpResponse, Error = Infallible>,
-    S::Future: Send + 'a,
-{
-    pub fn new(warp_service: S, storage_resolver: StorageResolver) -> Self {
-        Self {
-            warp_service,
-            storage_resolver,
-            _phantom_data: PhantomData,
-        }
-    }
-}
-
-impl<'a, S> Service<Request> for WarpAdapter<'a, S>
-where
-    S: Service<WarpRequest, Response = WarpResponse, Error = Infallible> + 'a,
-    S::Future: Send + 'a,
-{
+impl<'a> Service<Request> for WarpAdapter<'a> {
     type Response = Response<LambdaBody>;
     type Error = LambdaError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'a>>;
@@ -140,5 +111,3 @@ where
         Box::pin(fut)
     }
 }
-
-use quickwit_storage::StorageResolver;
