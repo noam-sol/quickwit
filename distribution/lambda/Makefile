@@ -11,6 +11,8 @@ INDEXER_PACKAGE_FILE=quickwit-lambda-indexer-$(QW_LAMBDA_VERSION)-x86_64.zip
 export SEARCHER_PACKAGE_PATH=cdk.out/$(SEARCHER_PACKAGE_FILE)
 export INDEXER_PACKAGE_PATH=cdk.out/$(INDEXER_PACKAGE_FILE)
 
+CDK_OUT=$(CURDIR)/cdk.out
+export CARGO_TARGET_DIR?=target
 
 check-env:
 ifndef CDK_ACCOUNT
@@ -24,8 +26,8 @@ endif
 # - Download by default, the version can be set with QW_LAMBDA_VERSION
 # - To build locally, set QW_LAMBDA_BUILD=1
 package:
-	mkdir -p cdk.out
-	pushd ../../quickwit/
+	mkdir -p ${CDK_OUT}
+	cd ../../quickwit/
 	rustc --version
 	# TODO: remove --disable-optimizations when upgrading to a release containing
 	# https://github.com/cargo-lambda/cargo-lambda/issues/649 (> 1.2.1)
@@ -36,9 +38,8 @@ package:
 	--features quickwit-metastore/postgres \
 	--output-format zip \
 	--target x86_64-unknown-linux-gnu
-	popd
-	cp -u ../../quickwit/target/lambda/searcher/bootstrap.zip $(SEARCHER_PACKAGE_PATH)
-	cp -u ../../quickwit/target/lambda/indexer/bootstrap.zip $(INDEXER_PACKAGE_PATH)
+	cp -u $(CARGO_TARGET_DIR)/lambda/searcher/bootstrap.zip $(CDK_OUT)/$(SEARCHER_PACKAGE_FILE)
+	cp -u $(CARGO_TARGET_DIR)/lambda/indexer/bootstrap.zip $(CDK_OUT)/$(INDEXER_PACKAGE_FILE)
 
 indexer-package-path:
 	echo -n $(INDEXER_PACKAGE_PATH)
