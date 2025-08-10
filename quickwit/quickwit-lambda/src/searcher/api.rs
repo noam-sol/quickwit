@@ -210,7 +210,14 @@ async fn log_and_forward_rejection(rejection: Rejection) -> Result<Box<dyn Reply
     Err(rejection)
 }
 
-pub fn setup_searcher_api(
+/// Sets up the searcher API for root lambdas
+///
+/// Includes:
+/// - REST API endpoints for external requests
+/// - gRPC server for internal communication
+/// - Node pool and interceptors for spawning leaf lambdas
+/// - Metastore connection for index/split discovery
+pub fn setup_root_searcher_api(
     node_config: NodeConfig,
     storage_resolver: StorageResolver,
     metastore: MetastoreServiceClient,
@@ -247,30 +254,82 @@ pub fn setup_searcher_api(
         storage_resolver,
     );
 
+    let api = create_api_with_hooks(
+        searcher_api(root_lambda_search_service, metastore).or(grpc_api()),
+        "root lambda",
+    );
+
+    (api, abort)
+}
+
+/// Sets up the API for leaf lambdas
+///
+/// Includes:
+/// - Only gRPC server for leaf search requests
+pub async fn setup_leaf_searcher_api(
+    node_config: NodeConfig,
+    storage_resolver: StorageResolver,
+    mock_metastore: MetastoreServiceClient,
+) -> (
+    impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone,
+    impl FnOnce(),
+) {
+    let telemetry_info: QuickwitTelemetryInfo = QuickwitTelemetryInfo::new(
+        HashSet::from_iter([QuickwitService::Searcher.as_str().to_string()]),
+        HashSet::from_iter([QuickwitFeature::AwsLambda]),
+    );
+    let _telemetry_handle_opt = quickwit_telemetry::start_telemetry_loop(telemetry_info);
+
+    info!("Setting up leaf lambda without node pool and interceptors");
+
+    // Spawn the leaf search service (gRPC server)
+    let leaf_grpc_server_handle = spawn_leaf_search_service(
+        node_config.searcher_config.clone(),
+        mock_metastore,
+        storage_resolver.clone(),
+    );
+
+    let abort = move || {
+        leaf_grpc_server_handle.abort();
+    };
+
+    let api = create_api_with_hooks(grpc_api(), "leaf lambda");
+
+    (api, abort)
+}
+
+/// Creates a warp API with common hooks (before/after request logging).
+fn create_api_with_hooks(
+    api_routes: impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone + Send + Sync + 'static,
+    lambda_type: &'static str,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     let before_hook = warp::path::full()
         .and(warp::method())
-        .and_then(|route: FullPath, method: Method| async move {
-            info!(
-                method = method.as_str(),
-                route = route.as_str(),
-                "new request"
-            );
-            quickwit_telemetry::send_telemetry_event(TelemetryEvent::RunCommand).await;
-            Ok::<_, std::convert::Infallible>(())
+        .and_then(move |route: FullPath, method: Method| {
+            let lambda_type = lambda_type;
+            async move {
+                info!(
+                    method = method.as_str(),
+                    route = route.as_str(),
+                    lambda_type = lambda_type,
+                    "new request"
+                );
+                quickwit_telemetry::send_telemetry_event(TelemetryEvent::RunCommand).await;
+                Ok::<_, std::convert::Infallible>(())
+            }
         })
         .untuple_one();
 
-    let after_hook = warp::log::custom(|info| {
-        info!(status = info.status().as_str(), "request completed");
+    let after_hook = warp::log::custom(move |info| {
+        info!(
+            status = info.status().as_str(),
+            lambda_type = lambda_type,
+            "request completed"
+        );
     });
 
-    let api = warp::any()
+    warp::any()
         .and(before_hook)
-        .and(
-            searcher_api(root_lambda_search_service, metastore) // for root lambda
-                .or(grpc_api()), // for leaf lambda
-        )
-        .with(after_hook);
-
-    (api, abort)
+        .and(api_routes)
+        .with(after_hook)
 }

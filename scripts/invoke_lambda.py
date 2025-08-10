@@ -26,6 +26,7 @@ def invoke_lambda(lambda_name, index_id: str, query: str):
                 "httpMethod": "POST",
                 "headers": {
                     "Content-Type": "application/json",
+                    "lambda-is-root": "true",
                 },
                 "requestContext": {
                     "httpMethod": "POST",

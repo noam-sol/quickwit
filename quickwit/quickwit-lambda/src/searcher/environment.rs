@@ -39,9 +39,14 @@ pub static NUM_LEAFS: Lazy<u16> = Lazy::new(|| {
         .expect("environment variable QW_LAMBDA_NUM_LEAFS must be int")
 });
 
-pub async fn load_lambda_node_config(
+pub async fn load_lambda_leaf_node_config(
 ) -> anyhow::Result<(NodeConfig, StorageResolver, MetastoreServiceClient)> {
-    load_node_config(CONFIGURATION_TEMPLATE).await
+    load_node_config(CONFIGURATION_TEMPLATE, true).await
+}
+
+pub async fn load_lambda_root_node_config(
+) -> anyhow::Result<(NodeConfig, StorageResolver, MetastoreServiceClient)> {
+    load_node_config(CONFIGURATION_TEMPLATE, false).await
 }
 
 #[cfg(test)]

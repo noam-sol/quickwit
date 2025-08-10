@@ -30,9 +30,10 @@ use tracing::{info, info_span, Instrument};
 use warp::hyper::Body as WarpBody;
 pub use {lambda_http, warp};
 
-use crate::searcher::environment::load_lambda_node_config;
+use crate::searcher::aws::lambda_header;
+use crate::searcher::environment::{load_lambda_leaf_node_config, load_lambda_root_node_config};
 use crate::searcher::lambda_response::{response_hook, ConstructLambdaResponse};
-use crate::searcher::setup_searcher_api;
+use crate::searcher::{setup_leaf_searcher_api, setup_root_searcher_api};
 
 pub type WarpRequest = warp::http::Request<warp::hyper::Body>;
 pub type WarpResponse = warp::http::Response<warp::hyper::Body>;
@@ -86,11 +87,32 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
 
         // Create lambda future
         let fut = async move {
-            let (node_config, storage_resolver, metastore) = load_lambda_node_config().await?;
-            let (routes, _) = setup_searcher_api(node_config, storage_resolver.clone(), metastore); // ignore abort() as lambda dies anyway.
-            let mut warp_service = warp::service(routes);
+            let is_leaf = match warp_request.headers().get(lambda_header::IS_LEAF) {
+                Some(v) => v
+                    .to_str()
+                    .context(format!("header {} is not a string", lambda_header::IS_LEAF))?
+                    .parse::<bool>()
+                    .context(format!("{} is not a boolean", lambda_header::IS_LEAF))?,
+                None => false,
+            };
 
-            let warp_response = warp_service.call(warp_request).await?;
+            let (storage_resolver, warp_response) = if is_leaf {
+                info!("Starting leaf lambda");
+                let (node_config, storage_resolver, metastore) =
+                    load_lambda_leaf_node_config().await?;
+                let (routes, _) =
+                    setup_leaf_searcher_api(node_config, storage_resolver.clone(), metastore).await;
+                let warp_response = warp::service(routes).call(warp_request).await?;
+                (storage_resolver, warp_response)
+            } else {
+                info!("Starting root lambda");
+                let (node_config, storage_resolver, metastore) =
+                    load_lambda_root_node_config().await?;
+                let (routes, _) =
+                    setup_root_searcher_api(node_config, storage_resolver.clone(), metastore);
+                let warp_response = warp::service(routes).call(warp_request).await?;
+                (storage_resolver, warp_response)
+            };
             let (parts, res_body): (_, _) = warp_response.into_parts();
             let body = warp::hyper::body::to_bytes(res_body).await?.to_vec();
 

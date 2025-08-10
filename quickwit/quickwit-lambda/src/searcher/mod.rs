@@ -19,4 +19,4 @@ mod lambda_response;
 pub mod reverse_proxy;
 pub mod warp_lambda;
 
-pub use api::setup_searcher_api;
+pub use api::{setup_leaf_searcher_api, setup_root_searcher_api};

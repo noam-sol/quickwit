@@ -50,7 +50,7 @@ pub async fn ingest(args: IngestArgs) -> anyhow::Result<IndexingStatistics> {
     send_telemetry().await;
 
     let (config, storage_resolver, mut metastore) =
-        load_node_config(CONFIGURATION_TEMPLATE).await?;
+        load_node_config(CONFIGURATION_TEMPLATE, false).await?;
 
     let source_config =
         configure_source(args.input_path, args.input_format, args.vrl_script).await?;
