@@ -44,6 +44,10 @@ pub type QueryParameters = Option<String>;
 /// Alias of warp `Method`
 pub type Method = RequestMethod;
 
+pub mod lambda_header {
+    pub const IS_LEAF: &str = "lambda-is-leaf";
+}
+
 pub fn create_grpc_interceptor(
     storage_resolver: StorageResolver,
 ) -> impl Filter<Extract = (http::Response<Body>,), Error = Rejection> + Clone {
@@ -80,10 +84,11 @@ pub async fn invoke_lambda_and_forward_response(
 pub async fn invoke_lambda_and_forward_response_inner(
     uri: FullPath,
     method: Method,
-    headers: HeaderMap,
+    mut headers: HeaderMap,
     body: Bytes,
     storage_resolver: StorageResolver,
 ) -> Result<http::Response<Body>, anyhow::Error> {
+    headers.insert(lambda_header::IS_LEAF, "true".parse().unwrap());
     let request_json = create_request_json(uri, method, headers, body)?.to_string();
     let aws_response = invoke_lambda(request_json.as_bytes())
         .await
