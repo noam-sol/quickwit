@@ -31,7 +31,9 @@ use tracing::{info, info_span, Instrument};
 use warp::hyper::Body as WarpBody;
 pub use {lambda_http, warp};
 
+use crate::searcher::environment::load_lambda_node_config;
 use crate::searcher::lambda_response::{response_hook, ConstructLambdaResponse};
+use crate::searcher::setup_searcher_api;
 
 pub type WarpRequest = warp::http::Request<warp::hyper::Body>;
 pub type WarpResponse = warp::http::Response<warp::hyper::Body>;
@@ -78,10 +80,8 @@ where
     type Error = LambdaError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'a>>;
 
-    fn poll_ready(&mut self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.warp_service
-            .poll_ready(ctx)
-            .map_err(|err| match err {})
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -113,14 +113,13 @@ where
         parts.uri = warp::hyper::Uri::from_str(uri.as_str()).unwrap();
         let warp_request = WarpRequest::from_parts(parts, body);
 
-        // Call warp service with warp request, save future
-        let warp_fut = self.warp_service.call(warp_request);
-
-        let storage_resolver = self.storage_resolver.clone();
-
         // Create lambda future
         let fut = async move {
-            let warp_response = warp_fut.await?;
+            let (node_config, storage_resolver, metastore) = load_lambda_node_config().await?;
+            let (routes, _) = setup_searcher_api(node_config, storage_resolver.clone(), metastore); // ignore abort() as lambda dies anyway.
+            let mut warp_service = warp::service(routes);
+
+            let warp_response = warp_service.call(warp_request).await?;
             let (parts, res_body): (_, _) = warp_response.into_parts();
             let body = warp::hyper::body::to_bytes(res_body).await?.to_vec();
 
