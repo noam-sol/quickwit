@@ -25,6 +25,7 @@ use quickwit_config::service::QuickwitService;
 use quickwit_config::{NodeConfig, SearcherConfig};
 use quickwit_proto::metastore::MetastoreServiceClient;
 use quickwit_proto::search::search_service_server::SearchServiceServer;
+use quickwit_proto::tonic::transport::server::TcpIncoming;
 use quickwit_proto::tonic::transport::Server;
 use quickwit_search::{
     create_search_client, ClusterClient, SearchClientConfig, SearchJobPlacer, SearchService,
@@ -46,7 +47,7 @@ use crate::searcher::reverse_proxy::reverse_proxy_filter;
 static GRPC_SERVER_PORT: u16 = 5000;
 
 fn spawn_grpc_server_task(
-    address: SocketAddr,
+    socket: TcpIncoming,
     search_service: Arc<dyn SearchService>,
 ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
     let search_grpc_adapter = GrpcSearchAdapter::from(search_service);
@@ -61,7 +62,7 @@ fn spawn_grpc_server_task(
                 tracing::Span::current()
             })
             .add_service(SearchServiceServer::new(search_grpc_adapter))
-            .serve(address)
+            .serve_with_incoming(socket)
             .await
             .context("grpc server task exit")
     })
@@ -71,10 +72,16 @@ fn spawn_grpc_interceptor_task(
     port: u16,
     storage_resolver: StorageResolver,
 ) -> tokio::task::JoinHandle<()> {
+    // panic when can't bind the port.
+    // probably the port is already in use => the previous cleanup() has failed => the lambda
+    // ExecutionEnvironment is dirty so kill it.
+    let grpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+    let grpc_socket =
+        TcpIncoming::new(grpc_addr, false, None).expect("failed to bind grpc interceptor port");
+
     tokio::spawn(async move {
         let hello = warp::any().and(create_grpc_interceptor(storage_resolver));
-
-        warp::serve(hello).run(([127, 0, 0, 1], port)).await;
+        warp::serve(hello).run_incoming(grpc_socket).await;
     })
 }
 
@@ -91,8 +98,13 @@ fn spawn_leaf_search_service(
         cluster_client.clone(),
         searcher_context.clone(),
     );
+    // panic when can't bind the port.
+    // probably the port is already in use => the previous cleanup() has failed => the lambda
+    // ExecutionEnvironment is dirty so kill it.
     let grpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), GRPC_SERVER_PORT);
-    spawn_grpc_server_task(grpc_addr, Arc::new(search_service.clone()))
+    let grpc_socket =
+        TcpIncoming::new(grpc_addr, false, None).expect("failed to bind grpc server port");
+    spawn_grpc_server_task(grpc_socket, Arc::new(search_service.clone()))
 }
 
 fn spawn_node_pool(
