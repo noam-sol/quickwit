@@ -26,6 +26,7 @@ use lambda_http::{
     lambda_runtime, Adapter, Body as LambdaBody, Error as LambdaError, Request, RequestExt,
     Response, Service,
 };
+use quickwit_storage::StorageResolver;
 use tracing::{info, info_span, Instrument};
 use warp::hyper::Body as WarpBody;
 pub use {lambda_http, warp};
@@ -113,23 +114,29 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
                 let warp_response = warp::service(routes).call(warp_request).await?;
                 (storage_resolver, warp_response)
             };
-            let (parts, res_body): (_, _) = warp_response.into_parts();
-            let body = warp::hyper::body::to_bytes(res_body).await?.to_vec();
 
-            let response_creator = ConstructLambdaResponse::new();
-            info!("entering response_hook");
-            let modified_body = response_hook(body, &storage_resolver, response_creator)
-                .await
-                .context("response_hook failed")?;
-            info!(
-                "exited response_hook; modified_body len: {}",
-                modified_body.len()
-            );
-
-            let lambda_response = Response::from_parts(parts, LambdaBody::Binary(modified_body));
-            Ok::<Self::Response, Self::Error>(lambda_response)
+            create_lambda_response(warp_response, &storage_resolver).await
         }
         .instrument(info_span!("searcher request", request_id));
         Box::pin(fut)
     }
+}
+
+async fn create_lambda_response(
+    warp_response: WarpResponse,
+    storage_resolver: &StorageResolver,
+) -> Result<Response<LambdaBody>, LambdaError> {
+    let (parts, res_body): (_, _) = warp_response.into_parts();
+    let body = warp::hyper::body::to_bytes(res_body).await?.to_vec();
+    let response_creator = ConstructLambdaResponse::new();
+    info!("entering response_hook");
+    let modified_body = response_hook(body, storage_resolver, response_creator)
+        .await
+        .context("response_hook failed")?;
+    info!(
+        "exited response_hook; modified_body len: {}",
+        modified_body.len()
+    );
+    let lambda_response = Response::from_parts(parts, LambdaBody::Binary(modified_body));
+    Ok(lambda_response)
 }
