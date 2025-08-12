@@ -6,6 +6,7 @@ from boto3 import Session
 from construct import Byte, Enum, Struct
 
 LAMBDA_NAME = "quickwit-searcher"
+NUM_LEAFS = 8
 
 RootSearcherLambdaResponseFooter = Struct(
     "content_type" / Enum(Byte, EMBED=0, S3_LINK=1),
@@ -32,7 +33,7 @@ def handle_qw_response(qw_body: str) -> None:
         raise ValueError(f"Unknown content_type: {footer.content_type}")
 
 
-def invoke_lambda(lambda_name: str, index_id: str, query: str, size: int) -> None:
+def invoke_lambda(lambda_name: str, index_id: str, query: str, size: int, num_leafs: int | None) -> None:
     body = json.dumps(
         {
             "query": query,
@@ -53,6 +54,7 @@ def invoke_lambda(lambda_name: str, index_id: str, query: str, size: int) -> Non
                 "httpMethod": "POST",
                 "headers": {
                     "Content-Type": "application/json",
+                    "lambda-num-leafs": str(num_leafs),
                 },
                 "requestContext": {
                     "httpMethod": "POST",
@@ -92,9 +94,10 @@ def main():
     parser.add_argument("--index", required=True)
     parser.add_argument("--query", required=True)
     parser.add_argument("--size", type=int, default=1, help="number of hits to return, 1 by default")
+    parser.add_argument("--num-leafs", type=int, default=NUM_LEAFS)
     args = parser.parse_args()
 
-    invoke_lambda(LAMBDA_NAME, args.index, args.query, args.size)
+    invoke_lambda(LAMBDA_NAME, args.index, args.query, args.size, args.num_leafs)
 
 
 if __name__ == "__main__":
