@@ -53,7 +53,6 @@ def invoke_lambda(lambda_name: str, index_id: str, query: str, size: int) -> Non
                 "httpMethod": "POST",
                 "headers": {
                     "Content-Type": "application/json",
-                    "lambda-is-root": "true",
                 },
                 "requestContext": {
                     "httpMethod": "POST",
