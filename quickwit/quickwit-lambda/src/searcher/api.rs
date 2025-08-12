@@ -253,7 +253,6 @@ pub fn setup_root_searcher_api(
 
     let (searcher_pool, grpc_interceptor_handles) = spawn_node_pool(storage_resolver.clone());
     let cleanup = async move {
-        // NOTE: not actually called by the lambda main().
         leaf_grpc_server_handle.abort();
         for handle in &grpc_interceptor_handles {
             handle.abort();

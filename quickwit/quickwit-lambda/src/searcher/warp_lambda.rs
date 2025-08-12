@@ -97,25 +97,33 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
                 None => false,
             };
 
-            let (storage_resolver, warp_response) = if is_leaf {
+            let (storage_resolver, warp_response, cleanup) = if is_leaf {
                 info!("Starting leaf lambda");
                 let (node_config, storage_resolver, metastore) =
                     load_lambda_leaf_node_config().await?;
-                let (routes, _) =
+                let (routes, cleanup) =
                     setup_leaf_searcher_api(node_config, storage_resolver.clone(), metastore).await;
                 let warp_response = warp::service(routes).call(warp_request).await?;
-                (storage_resolver, warp_response)
+                (storage_resolver, warp_response, cleanup)
             } else {
                 info!("Starting root lambda");
                 let (node_config, storage_resolver, metastore) =
                     load_lambda_root_node_config().await?;
-                let (routes, _) =
+                let (routes, cleanup) =
                     setup_root_searcher_api(node_config, storage_resolver.clone(), metastore);
                 let warp_response = warp::service(routes).call(warp_request).await?;
-                (storage_resolver, warp_response)
+                (storage_resolver, warp_response, cleanup)
             };
+            let cleanup_task = tokio::spawn(cleanup);
 
-            create_lambda_response(warp_response, &storage_resolver).await
+            let res = create_lambda_response(warp_response, &storage_resolver).await;
+            if let Err(e) = res {
+                let _ = cleanup_task.await;
+                return Err(e);
+            }
+
+            let _ = cleanup_task.await;
+            res
         }
         .instrument(info_span!("searcher request", request_id));
         Box::pin(fut)
