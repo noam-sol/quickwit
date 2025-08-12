@@ -1,4 +1,3 @@
-
 from boto3 import Session
 import json
 import base64
@@ -48,7 +47,7 @@ def invoke_lambda(lambda_name, index_id: str, query: str):
         print("Lambda Response Payload:")
         print(payload_str)
         return
-    
+
     if "statusCode" in quickwit_resp:
         if quickwit_resp["statusCode"] // 100 != 2:
             print("Lambda Response Payload:")
@@ -68,7 +67,7 @@ def main():
     parser.add_argument('--index', required=True)
     parser.add_argument('--query', required=True)
     args = parser.parse_args()
-    
+
     invoke_lambda(LAMBDA_NAME, args.index, args.query)
 
 
