@@ -1,16 +1,44 @@
-from boto3 import Session
-import json
-import base64
-import gzip
 import argparse
+import base64
+import json
+
+from boto3 import Session
+from construct import Byte, Enum, Struct
 
 LAMBDA_NAME = "quickwit-searcher"
 
-def invoke_lambda(lambda_name, index_id: str, query: str, size: int):
-    body = json.dumps({
-        "query": query,
-        "max_hits": size,
-    })
+RootSearcherLambdaResponseFooter = Struct(
+    "content_type" / Enum(Byte, EMBED=0, S3_LINK=1),
+    "version" / Byte,
+)
+
+
+def handle_qw_response(qw_body: str) -> None:
+    data = qw_body.encode()
+
+    footer_size = RootSearcherLambdaResponseFooter.sizeof()
+    if len(data) <= footer_size:
+        raise ValueError("QuickWit body too short")
+
+    payload = data[:-footer_size]
+    footer = RootSearcherLambdaResponseFooter.parse(data[-footer_size:])
+
+    if footer.content_type == "EMBED":
+        # Prettify json response
+        print(json.dumps(json.loads(payload.decode()), indent=2))
+    elif footer.content_type == "S3_LINK":
+        print("S3 link (TODO: fetch via boto3):", payload.decode().strip())
+    else:
+        raise ValueError(f"Unknown content_type: {footer.content_type}")
+
+
+def invoke_lambda(lambda_name: str, index_id: str, query: str, size: int) -> None:
+    body = json.dumps(
+        {
+            "query": query,
+            "max_hits": size,
+        }
+    )
 
     session = Session()
     client = session.client("lambda")
@@ -37,11 +65,11 @@ def invoke_lambda(lambda_name, index_id: str, query: str, size: int):
     )
 
     log_result = base64.b64decode(resp["LogResult"])
-    log_out = str(log_result, 'utf-8')
+    log_out = str(log_result, "utf-8")
     print(log_out)
     print("\n\n\n")
 
-    payload_str = resp["Payload"].read().decode('utf-8')
+    payload_str = resp["Payload"].read().decode("utf-8")
     quickwit_resp = json.loads(payload_str)
     if "errorType" in quickwit_resp:
         print("Lambda Response Payload:")
@@ -55,11 +83,9 @@ def invoke_lambda(lambda_name, index_id: str, query: str, size: int):
             return
 
     qw_body = quickwit_resp["body"]
-    decoded_body = base64.b64decode(qw_body)
-    decompressed_body = gzip.decompress(decoded_body)
-    json_body = json.loads(decompressed_body)
-    print("\nDecompressed QuickWit Response:")
-    print(json.dumps(json_body, indent=2))
+
+    print("\nQuickWit Response:")
+    handle_qw_response(qw_body)
 
 
 def main():
