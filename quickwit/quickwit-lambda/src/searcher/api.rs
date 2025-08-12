@@ -43,7 +43,6 @@ use warp::reject::Rejection;
 use warp::{Filter, Reply};
 
 use super::aws::create_grpc_interceptor;
-use crate::searcher::environment::NUM_LEAFS;
 use crate::searcher::reverse_proxy::reverse_proxy_filter;
 
 static GRPC_SERVER_PORT: u16 = 5000;
@@ -110,6 +109,7 @@ fn spawn_leaf_search_service(
 }
 
 fn spawn_node_pool(
+    num_leafs: u16,
     storage_resolver: StorageResolver,
 ) -> (
     Pool<SocketAddr, SearchServiceClient>,
@@ -118,7 +118,7 @@ fn spawn_node_pool(
     let mut handles = Vec::new();
     let searcher_pool = SearcherPool::default();
     let start_port = 6001;
-    let end_port = start_port + *NUM_LEAFS;
+    let end_port = start_port + num_leafs;
     for port in start_port..end_port {
         handles.push(spawn_grpc_interceptor_task(port, storage_resolver.clone()));
         let socket_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
@@ -232,6 +232,7 @@ async fn log_and_forward_rejection(rejection: Rejection) -> Result<Box<dyn Reply
 /// - Node pool and interceptors for spawning leaf lambdas
 /// - Metastore connection for index/split discovery
 pub fn setup_root_searcher_api(
+    num_leafs: u16,
     node_config: NodeConfig,
     storage_resolver: StorageResolver,
     metastore: MetastoreServiceClient,
@@ -251,7 +252,8 @@ pub fn setup_root_searcher_api(
         storage_resolver.clone(),
     );
 
-    let (searcher_pool, grpc_interceptor_handles) = spawn_node_pool(storage_resolver.clone());
+    let (searcher_pool, grpc_interceptor_handles) =
+        spawn_node_pool(num_leafs, storage_resolver.clone());
     let cleanup = async move {
         leaf_grpc_server_handle.abort();
         for handle in &grpc_interceptor_handles {

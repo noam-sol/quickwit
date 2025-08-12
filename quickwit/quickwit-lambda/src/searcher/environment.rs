@@ -32,13 +32,6 @@ pub static LEAF_FUNCTION_NAME: Lazy<String> = Lazy::new(|| {
         .expect("environment variable QW_LAMBDA_LEAF_FUNCTION_NAME should be set")
 });
 
-pub static NUM_LEAFS: Lazy<u16> = Lazy::new(|| {
-    var("QW_LAMBDA_NUM_LEAFS")
-        .expect("environment variable QW_LAMBDA_NUM_LEAFS should be set")
-        .parse::<u16>()
-        .expect("environment variable QW_LAMBDA_NUM_LEAFS must be int")
-});
-
 pub async fn load_lambda_leaf_node_config(
 ) -> anyhow::Result<(NodeConfig, StorageResolver, MetastoreServiceClient)> {
     load_node_config(CONFIGURATION_TEMPLATE, true).await

@@ -93,7 +93,10 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
                     .to_str()
                     .context(format!("header {} is not a string", lambda_header::IS_LEAF))?
                     .parse::<bool>()
-                    .context(format!("header {} is not a boolean", lambda_header::IS_LEAF))?,
+                    .context(format!(
+                        "header {} is not a boolean",
+                        lambda_header::IS_LEAF
+                    ))?,
                 None => false,
             };
 
@@ -107,10 +110,16 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
                 (storage_resolver, warp_response, cleanup)
             } else {
                 info!("Starting root lambda");
+                let num_leafs: u16 = parse_num_leafs(&warp_request)?;
+                info!(num_leafs, "Parsed root lambda num_leafs");
                 let (node_config, storage_resolver, metastore) =
                     load_lambda_root_node_config().await?;
-                let (routes, cleanup) =
-                    setup_root_searcher_api(node_config, storage_resolver.clone(), metastore);
+                let (routes, cleanup) = setup_root_searcher_api(
+                    num_leafs,
+                    node_config,
+                    storage_resolver.clone(),
+                    metastore,
+                );
                 let warp_response = warp::service(routes).call(warp_request).await?;
                 (storage_resolver, warp_response, cleanup)
             };
@@ -147,4 +156,15 @@ async fn create_lambda_response(
     );
     let lambda_response = Response::from_parts(parts, LambdaBody::Binary(modified_body));
     Ok(lambda_response)
+}
+
+fn parse_num_leafs(warp_request: &WarpRequest) -> Result<u16, anyhow::Error> {
+    warp_request
+        .headers()
+        .get(lambda_header::NUM_LEAFS)
+        .ok_or_else(|| anyhow!("header {} is required", lambda_header::NUM_LEAFS))?
+        .to_str()
+        .with_context(|| format!("header {} is not a string", lambda_header::NUM_LEAFS))?
+        .parse::<u16>()
+        .with_context(|| format!("header {} is not a u16", lambda_header::NUM_LEAFS))
 }

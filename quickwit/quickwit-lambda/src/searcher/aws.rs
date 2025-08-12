@@ -46,6 +46,7 @@ pub type Method = RequestMethod;
 
 pub mod lambda_header {
     pub const IS_LEAF: &str = "lambda-is-leaf";
+    pub const NUM_LEAFS: &str = "lambda-num-leafs";
 }
 
 pub fn create_grpc_interceptor(
