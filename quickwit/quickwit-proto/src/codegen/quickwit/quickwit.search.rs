@@ -269,17 +269,28 @@ pub struct SplitSearchError {
     #[prost(bool, tag = "3")]
     pub retryable_error: bool,
 }
+#[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AssumeRole {
+    /// role ARN to assume for S3 operations
+    #[prost(string, tag = "1")]
+    pub role_arn: ::prost::alloc::string::String,
+    /// Optional external ID to use when assuming the role
+    #[prost(string, optional, tag = "2")]
+    pub external_id: ::core::option::Option<::prost::alloc::string::String>,
+}
 /// S3 specific storage credentials
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct S3StorageCredentials {
-    /// Optional role ARN to assume for S3 operations
-    #[prost(string, optional, tag = "1")]
-    pub role_arn: ::core::option::Option<::prost::alloc::string::String>,
-    /// Optional external ID to use when assuming the role
-    #[prost(string, optional, tag = "2")]
-    pub external_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// role to access data bucket and index bucket if index_role is not defined.
+    #[prost(message, optional, tag = "1")]
+    pub role: ::core::option::Option<AssumeRole>,
+    /// role to access index bucket
+    #[prost(message, optional, tag = "2")]
+    pub index_role: ::core::option::Option<AssumeRole>,
     /// Optional KMS Key ID to use when SSE-KMS is used
     #[prost(string, optional, tag = "3")]
     pub kms_key_id: ::core::option::Option<::prost::alloc::string::String>,

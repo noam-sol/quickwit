@@ -28,7 +28,7 @@ use quickwit_proto::metastore::{
 };
 use quickwit_proto::types::IndexUid;
 use quickwit_search::SearchJobPlacer;
-use quickwit_storage::StorageResolver;
+use quickwit_storage::{StorageResolver, StorageUsage};
 use serde::Serialize;
 use tracing::{error, info, warn};
 
@@ -164,7 +164,11 @@ impl DeleteTaskService {
         let index_uri = index_config.index_uri.clone();
         let index_storage = self
             .storage_resolver
-            .resolve(&index_uri, &index_config.storage_credentials)
+            .resolve(
+                &index_uri,
+                &index_config.storage_credentials,
+                StorageUsage::Index,
+            )
             .await?;
         let index_metadata_request =
             IndexMetadataRequest::for_index_id(index_config.index_id.to_string());

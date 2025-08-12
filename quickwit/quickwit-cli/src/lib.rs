@@ -33,7 +33,7 @@ use quickwit_metastore::{IndexMetadataResponseExt, MetastoreResolver};
 use quickwit_proto::metastore::{IndexMetadataRequest, MetastoreService, MetastoreServiceClient};
 use quickwit_rest_client::models::Timeout;
 use quickwit_rest_client::rest_client::{QuickwitClient, QuickwitClientBuilder, DEFAULT_BASE_URL};
-use quickwit_storage::{load_file, StorageResolver};
+use quickwit_storage::{load_file, StorageResolver, StorageUsage};
 use reqwest::Url;
 use tabled::settings::object::Rows;
 use tabled::settings::panel::Header;
@@ -209,6 +209,7 @@ async fn load_node_config(config_uri: &Uri) -> anyhow::Result<NodeConfig> {
         &StorageResolver::unconfigured(),
         config_uri,
         &StorageCredentials::default(),
+        StorageUsage::default(),
     )
     .await
     .context("failed to load node config")?;
@@ -257,7 +258,11 @@ pub async fn run_index_checklist(
             // That's okay because we use storage credentials for cross-account accessing,
             // but the metastore storage is in the same account as quickwit.
             let metastore_storage = storage_resolver
-                .resolve(&metastore_endpoint, &StorageCredentials::default())
+                .resolve(
+                    &metastore_endpoint,
+                    &StorageCredentials::default(),
+                    StorageUsage::Index,
+                )
                 .await?;
             checks.push((
                 "metastore storage",
@@ -274,6 +279,7 @@ pub async fn run_index_checklist(
         .resolve(
             index_metadata.index_uri(),
             &index_metadata.index_config().storage_credentials,
+            StorageUsage::Index,
         )
         .await?;
     checks.push(("index storage", index_storage.check_connectivity().await));

@@ -29,7 +29,7 @@ use crate::prefix_storage::add_prefix_to_storage;
 use crate::storage::SendableAsync;
 use crate::{
     BulkDeleteError, OwnedBytes, Storage, StorageErrorKind, StorageFactory, StorageResolverError,
-    StorageResult,
+    StorageResult, StorageUsage,
 };
 
 /// In Ram implementation of quickwit's storage.
@@ -203,6 +203,7 @@ impl StorageFactory for RamStorageFactory {
         &self,
         uri: &Uri,
         _: &StorageCredentials,
+        _: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         match uri.filepath() {
             Some(prefix) if uri.protocol() == Protocol::Ram => Ok(add_prefix_to_storage(
@@ -236,7 +237,7 @@ mod tests {
         let ram_storage_factory = RamStorageFactory::default();
         let ram_uri = Uri::for_test("s3:///foo");
         let err = ram_storage_factory
-            .resolve(&ram_uri, &StorageCredentials::default())
+            .resolve(&ram_uri, &StorageCredentials::default(), StorageUsage::Data)
             .await
             .err()
             .unwrap();
@@ -244,20 +245,32 @@ mod tests {
 
         let data_uri = Uri::for_test("ram:///data");
         let data_storage = ram_storage_factory
-            .resolve(&data_uri, &StorageCredentials::default())
+            .resolve(
+                &data_uri,
+                &StorageCredentials::default(),
+                StorageUsage::Data,
+            )
             .await
             .ok()
             .unwrap();
         let home_uri = Uri::for_test("ram:///home");
         let home_storage = ram_storage_factory
-            .resolve(&home_uri, &StorageCredentials::default())
+            .resolve(
+                &home_uri,
+                &StorageCredentials::default(),
+                StorageUsage::Data,
+            )
             .await
             .ok()
             .unwrap();
         assert_ne!(data_storage.uri(), home_storage.uri());
 
         let data_storage_two = ram_storage_factory
-            .resolve(&data_uri, &StorageCredentials::default())
+            .resolve(
+                &data_uri,
+                &StorageCredentials::default(),
+                StorageUsage::Data,
+            )
             .await
             .ok()
             .unwrap();

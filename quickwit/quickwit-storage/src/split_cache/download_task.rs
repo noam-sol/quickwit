@@ -22,7 +22,7 @@ use quickwit_config::StorageCredentials;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::split_cache::split_table::{CandidateSplit, DownloadOpportunity};
-use crate::{SplitCache, StorageResolver};
+use crate::{SplitCache, StorageResolver, StorageUsage};
 
 async fn download_split(
     split_cache: &SplitCache,
@@ -52,7 +52,7 @@ async fn download_split(
         });
 
     let storage = storage_resolver
-        .resolve(storage_uri, &storage_credentials)
+        .resolve(storage_uri, &storage_credentials, StorageUsage::Index)
         .await?;
     let num_bytes = storage
         .copy_to_file(Path::new(&split_filename), &target_filepath)

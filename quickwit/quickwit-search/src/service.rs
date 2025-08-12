@@ -32,7 +32,7 @@ use quickwit_proto::search::{
     SnippetRequest,
 };
 use quickwit_storage::{
-    MemorySizedCache, QuickwitCache, SplitCache, StorageCache, StorageResolver,
+    MemorySizedCache, QuickwitCache, SplitCache, StorageCache, StorageResolver, StorageUsage,
 };
 use tantivy::aggregation::AggregationLimitsGuard;
 use tokio::sync::Semaphore;
@@ -235,7 +235,7 @@ impl SearchService for SearchServiceImpl {
 
         let storage = self
             .storage_resolver
-            .resolve(&index_uri, &storage_credentials)
+            .resolve(&index_uri, &storage_credentials, StorageUsage::Index)
             .await?;
         let snippet_request_opt: Option<&SnippetRequest> =
             fetch_docs_request.snippet_request.as_ref();
@@ -281,7 +281,7 @@ impl SearchService for SearchServiceImpl {
 
         let storage = self
             .storage_resolver
-            .resolve(&index_uri, &storage_credentials)
+            .resolve(&index_uri, &storage_credentials, StorageUsage::Index)
             .await?;
         let doc_mapper = deserialize_doc_mapper(&leaf_stream_request.doc_mapper)?;
         let leaf_receiver = leaf_search_stream(
@@ -323,7 +323,7 @@ impl SearchService for SearchServiceImpl {
 
         let storage = self
             .storage_resolver
-            .resolve(&index_uri, &storage_credentials)
+            .resolve(&index_uri, &storage_credentials, StorageUsage::Index)
             .await?;
         let split_ids = leaf_search_request.split_offsets;
 
@@ -385,7 +385,7 @@ impl SearchService for SearchServiceImpl {
 
         let storage = self
             .storage_resolver
-            .resolve(&index_uri, &storage_credentials)
+            .resolve(&index_uri, &storage_credentials, StorageUsage::Index)
             .await?;
         let index_id = list_fields_req.index_id;
         let split_ids = list_fields_req.split_offsets;

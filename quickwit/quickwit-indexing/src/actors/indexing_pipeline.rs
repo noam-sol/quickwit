@@ -31,7 +31,7 @@ use quickwit_ingest::IngesterPool;
 use quickwit_proto::indexing::IndexingPipelineId;
 use quickwit_proto::metastore::{MetastoreError, MetastoreServiceClient};
 use quickwit_proto::types::ShardId;
-use quickwit_storage::{Storage, StorageResolver};
+use quickwit_storage::StorageResolver;
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info, instrument};
 
@@ -570,7 +570,6 @@ impl Handler<AssignShards> for IndexingPipeline {
 pub struct IndexingPipelineParams {
     pub pipeline_id: IndexingPipelineId,
     pub metastore: MetastoreServiceClient,
-    pub storage: Arc<dyn Storage>,
 
     // Indexing-related parameters
     pub doc_mapper: Arc<DocMapper>,
@@ -713,7 +712,6 @@ mod tests {
             indexing_settings: IndexingSettings::for_test(),
             ingester_pool: IngesterPool::default(),
             metastore: MetastoreServiceClient::from_mock(mock_metastore),
-            storage,
             split_store,
             merge_policy: default_merge_policy(),
             retention_policy: None,
@@ -829,7 +827,6 @@ mod tests {
             ingester_pool: IngesterPool::default(),
             metastore: MetastoreServiceClient::from_mock(mock_metastore),
             queues_dir_path: PathBuf::from("./queues"),
-            storage,
             split_store,
             merge_policy: default_merge_policy(),
             retention_policy: None,
@@ -931,7 +928,6 @@ mod tests {
             ingester_pool: IngesterPool::default(),
             metastore,
             queues_dir_path: PathBuf::from("./queues"),
-            storage,
             split_store,
             merge_policy: default_merge_policy(),
             retention_policy: None,
@@ -1060,7 +1056,6 @@ mod tests {
             ingester_pool: IngesterPool::default(),
             metastore: MetastoreServiceClient::from_mock(mock_metastore),
             queues_dir_path: PathBuf::from("./queues"),
-            storage,
             split_store,
             merge_policy: default_merge_policy(),
             retention_policy: None,

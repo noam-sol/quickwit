@@ -29,7 +29,7 @@ use quickwit_config::StorageCredentials;
 use quickwit_metastore::{IndexMetadata, IndexMetadataResponseExt, MetastoreResolver};
 use quickwit_proto::metastore::{IndexMetadataRequest, MetastoreService, MetastoreServiceClient};
 use quickwit_proto::types::IndexId;
-use quickwit_storage::{Storage, StorageResolver};
+use quickwit_storage::{Storage, StorageResolver, StorageUsage};
 use reqwest::Url;
 use tempfile::{tempdir, TempDir};
 use tracing::error;
@@ -212,7 +212,11 @@ pub async fn create_test_env(
     };
     let storage_resolver = StorageResolver::unconfigured();
     let storage = storage_resolver
-        .resolve(&metastore_uri, &StorageCredentials::default())
+        .resolve(
+            &metastore_uri,
+            &StorageCredentials::default(),
+            StorageUsage::Data,
+        )
         .await?;
     let metastore_resolver = MetastoreResolver::unconfigured();
     let index_uri = metastore_uri.join(&index_id).unwrap();
@@ -294,7 +298,11 @@ pub async fn upload_test_file(
     let src_location = format!("s3://{}/{}", bucket, prefix);
     let storage_uri = Uri::from_str(&src_location).unwrap();
     let storage = storage_resolver
-        .resolve(&storage_uri, &StorageCredentials::default())
+        .resolve(
+            &storage_uri,
+            &StorageCredentials::default(),
+            StorageUsage::Data,
+        )
         .await
         .unwrap();
     storage

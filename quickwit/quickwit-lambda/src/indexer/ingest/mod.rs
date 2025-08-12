@@ -124,7 +124,7 @@ mod tests {
 
     use quickwit_common::new_coolid;
     use quickwit_config::StorageCredentials;
-    use quickwit_storage::StorageResolver;
+    use quickwit_storage::{StorageResolver, StorageUsage};
 
     use super::*;
 
@@ -138,7 +138,11 @@ mod tests {
         let src_location = format!("s3://{}/{}", bucket, prefix);
         let storage_uri = Uri::from_str(&src_location).unwrap();
         let storage = storage_resolver
-            .resolve(&storage_uri, &StorageCredentials::default())
+            .resolve(
+                &storage_uri,
+                &StorageCredentials::default(),
+                StorageUsage::Index,
+            )
             .await
             .unwrap();
         storage

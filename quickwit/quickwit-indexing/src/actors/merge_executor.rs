@@ -124,10 +124,15 @@ impl Handler<MergeScratch> for MergeExecutor {
             }
         };
         if let Some(indexed_split) = indexed_split_opt {
+            let index_uid = merge_task
+                .splits
+                .first()
+                .map(|split| split.index_uid.to_string());
             info!(
                 merged_num_docs = %indexed_split.split_attrs.num_docs,
                 elapsed_secs = %start.elapsed().as_secs_f32(),
                 operation_type = %merge_task.operation_type,
+                index_uid = %index_uid.unwrap_or("None".to_string()),
                 "merge-operation-success"
             );
             ctx.send_message(
