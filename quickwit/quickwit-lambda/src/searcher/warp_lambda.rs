@@ -93,7 +93,7 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
                     .to_str()
                     .context(format!("header {} is not a string", lambda_header::IS_LEAF))?
                     .parse::<bool>()
-                    .context(format!("{} is not a boolean", lambda_header::IS_LEAF))?,
+                    .context(format!("header {} is not a boolean", lambda_header::IS_LEAF))?,
                 None => false,
             };
 
