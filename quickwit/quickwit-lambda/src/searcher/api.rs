@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use std::collections::HashSet;
+use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -235,7 +237,7 @@ pub fn setup_root_searcher_api(
     metastore: MetastoreServiceClient,
 ) -> (
     impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone,
-    impl FnOnce(),
+    Pin<Box<dyn Future<Output = ()> + Send>>,
 ) {
     let telemetry_info = QuickwitTelemetryInfo::new(
         HashSet::from_iter([QuickwitService::Searcher.as_str().to_string()]),
@@ -250,12 +252,17 @@ pub fn setup_root_searcher_api(
     );
 
     let (searcher_pool, grpc_interceptor_handles) = spawn_node_pool(storage_resolver.clone());
-    let abort = move || {
+    let cleanup = async move {
         // NOTE: not actually called by the lambda main().
-        // TODO: if used, consider to await() as well.
         leaf_grpc_server_handle.abort();
-        for handle in grpc_interceptor_handles {
+        for handle in &grpc_interceptor_handles {
             handle.abort();
+        }
+
+        // Await the drop chain: future drop -> warp::Server drop -> port release.
+        join_and_log_result(leaf_grpc_server_handle).await;
+        for handle in grpc_interceptor_handles {
+            join_and_log(handle).await;
         }
     };
 
@@ -271,7 +278,7 @@ pub fn setup_root_searcher_api(
         "root lambda",
     );
 
-    (api, abort)
+    (api, Box::pin(cleanup))
 }
 
 /// Sets up the API for leaf lambdas
@@ -284,7 +291,7 @@ pub async fn setup_leaf_searcher_api(
     mock_metastore: MetastoreServiceClient,
 ) -> (
     impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone,
-    impl FnOnce(),
+    Pin<Box<dyn Future<Output = ()> + Send>>,
 ) {
     let telemetry_info: QuickwitTelemetryInfo = QuickwitTelemetryInfo::new(
         HashSet::from_iter([QuickwitService::Searcher.as_str().to_string()]),
@@ -301,13 +308,14 @@ pub async fn setup_leaf_searcher_api(
         storage_resolver.clone(),
     );
 
-    let abort = move || {
+    let cleanup = async move {
         leaf_grpc_server_handle.abort();
+        join_and_log_result(leaf_grpc_server_handle).await;
     };
 
     let api = create_api_with_hooks(grpc_api(), "leaf lambda");
 
-    (api, abort)
+    (api, Box::pin(cleanup))
 }
 
 /// Creates a warp API with common hooks (before/after request logging).
@@ -344,4 +352,31 @@ fn create_api_with_hooks(
         .and(before_hook)
         .and(api_routes)
         .with(after_hook)
+}
+
+async fn join_and_log_result(handle: tokio::task::JoinHandle<Result<(), anyhow::Error>>) {
+    let outer_res = handle.await;
+    match outer_res {
+        Err(e) => {
+            if e.is_cancelled() {
+                return;
+            }
+            error!(%e, "failed to cancel tokio task");
+        }
+        Ok(inner_res) => {
+            if let Err(e) = inner_res {
+                error!(%e, "failed to cancel tokio task - task returned error");
+            }
+        }
+    }
+}
+
+async fn join_and_log(handle: tokio::task::JoinHandle<()>) {
+    let res = handle.await;
+    if let Err(e) = res {
+        if e.is_cancelled() {
+            return;
+        }
+        error!(%e, "failed to cancel tokio task");
+    }
 }
