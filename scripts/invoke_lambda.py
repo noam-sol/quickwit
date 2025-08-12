@@ -6,10 +6,10 @@ import argparse
 
 LAMBDA_NAME = "quickwit-searcher"
 
-def invoke_lambda(lambda_name, index_id: str, query: str):
+def invoke_lambda(lambda_name, index_id: str, query: str, size: int):
     body = json.dumps({
         "query": query,
-        "max_hits": 2500,
+        "max_hits": size,
     })
 
     session = Session()
@@ -63,12 +63,13 @@ def invoke_lambda(lambda_name, index_id: str, query: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Invoke QuickWit Lambda function')
-    parser.add_argument('--index', required=True)
-    parser.add_argument('--query', required=True)
+    parser = argparse.ArgumentParser(description="Invoke QuickWit Lambda function")
+    parser.add_argument("--index", required=True)
+    parser.add_argument("--query", required=True)
+    parser.add_argument("--size", type=int, default=1, help="number of hits to return, 1 by default")
     args = parser.parse_args()
 
-    invoke_lambda(LAMBDA_NAME, args.index, args.query)
+    invoke_lambda(LAMBDA_NAME, args.index, args.query, args.size)
 
 
 if __name__ == "__main__":
