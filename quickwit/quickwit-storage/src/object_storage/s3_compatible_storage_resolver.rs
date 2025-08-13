@@ -162,7 +162,7 @@ mod tests {
                 s3: Some(S3StorageCredentials {
                     role: None,
                     index_role: None,
-                    kms_key_id: None,
+                    index_kms_key_id: None,
                 }),
             },
             StorageUsage::Data,
@@ -176,7 +176,7 @@ mod tests {
                     external_id: None,
                 }),
                 index_role: None,
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         let res = get_role(&storage_credentials, StorageUsage::Data);
@@ -191,7 +191,7 @@ mod tests {
                     external_id: Some("external-id".to_string()),
                 }),
                 index_role: None,
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         let res = get_role(&storage_credentials, StorageUsage::Data);
@@ -210,7 +210,7 @@ mod tests {
                     external_id: Some("external-id".to_string()),
                 }),
                 index_role: None,
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         let res = get_role(&storage_credentials, StorageUsage::Index);
@@ -232,7 +232,7 @@ mod tests {
                     role_arn: "index_arn".to_string(),
                     external_id: Some("external-id2".to_string()),
                 }),
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         let res = get_role(&storage_credentials, StorageUsage::Index);

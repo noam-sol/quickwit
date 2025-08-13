@@ -396,7 +396,7 @@ impl S3CompatibleObjectStorage {
             .s3_storage_credentials
             .as_ref()
             .and_then(|creds| creds.s3.as_ref())
-            .and_then(|s3| s3.kms_key_id.as_ref())
+            .and_then(|s3| s3.index_kms_key_id.as_ref())
         {
             put_object = put_object
                 .server_side_encryption(ServerSideEncryption::AwsKms)

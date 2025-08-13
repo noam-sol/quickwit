@@ -1809,7 +1809,7 @@ pub fn convert_config_credentials_to_proto(
                 role_arn: role.role_arn.clone(),
                 external_id: role.external_id.clone(),
             }),
-            kms_key_id: s3_creds.kms_key_id.clone(),
+            index_kms_key_id: s3_creds.index_kms_key_id.clone(),
         });
 
     ProtoStorageCredentials { s3: s3_credentials }
@@ -1845,7 +1845,7 @@ pub fn proto_storage_to_config_credentials(
                         external_id: role.external_id.clone(),
                     }
                 }),
-                kms_key_id: s3_proto.kms_key_id.clone(),
+                index_kms_key_id: s3_proto.index_kms_key_id.clone(),
             }),
         };
     }

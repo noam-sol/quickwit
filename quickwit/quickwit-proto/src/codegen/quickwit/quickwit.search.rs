@@ -291,9 +291,9 @@ pub struct S3StorageCredentials {
     /// role to access index bucket
     #[prost(message, optional, tag = "2")]
     pub index_role: ::core::option::Option<AssumeRole>,
-    /// Optional KMS Key ID to use when SSE-KMS is used
+    /// Optional KMS Key ID for the index bucket to use when SSE-KMS is used
     #[prost(string, optional, tag = "3")]
-    pub kms_key_id: ::core::option::Option<::prost::alloc::string::String>,
+    pub index_kms_key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Storage credentials for accessing storage services
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
