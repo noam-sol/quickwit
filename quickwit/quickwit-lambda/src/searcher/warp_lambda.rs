@@ -27,7 +27,7 @@ use lambda_http::{
     Response, Service,
 };
 use quickwit_storage::StorageResolver;
-use tracing::{info, info_span, Instrument};
+use tracing::{error, info, info_span, Instrument};
 use warp::hyper::Body as WarpBody;
 pub use {lambda_http, warp};
 
@@ -88,55 +88,57 @@ impl<'a> Service<Request> for WarpAdapter<'a> {
 
         // Create lambda future
         let fut = async move {
-            let is_leaf = match warp_request.headers().get(lambda_header::IS_LEAF) {
-                Some(v) => v
-                    .to_str()
-                    .context(format!("header {} is not a string", lambda_header::IS_LEAF))?
-                    .parse::<bool>()
-                    .context(format!(
-                        "header {} is not a boolean",
-                        lambda_header::IS_LEAF
-                    ))?,
-                None => false,
-            };
-
-            let (storage_resolver, warp_response, cleanup) = if is_leaf {
-                info!("Starting leaf lambda");
-                let (node_config, storage_resolver, metastore) =
-                    load_lambda_leaf_node_config().await?;
-                let (routes, cleanup) =
-                    setup_leaf_searcher_api(node_config, storage_resolver.clone(), metastore).await;
-                let warp_response = warp::service(routes).call(warp_request).await?;
-                (storage_resolver, warp_response, cleanup)
-            } else {
-                info!("Starting root lambda");
-                let num_leafs: u16 = parse_num_leafs(&warp_request)?;
-                info!(num_leafs, "Parsed root lambda num_leafs");
-                let (node_config, storage_resolver, metastore) =
-                    load_lambda_root_node_config().await?;
-                let (routes, cleanup) = setup_root_searcher_api(
-                    num_leafs,
-                    node_config,
-                    storage_resolver.clone(),
-                    metastore,
-                );
-                let warp_response = warp::service(routes).call(warp_request).await?;
-                (storage_resolver, warp_response, cleanup)
-            };
-            let cleanup_task = tokio::spawn(cleanup);
-
-            let res = create_lambda_response(warp_response, &storage_resolver).await;
-            if let Err(e) = res {
-                let _ = cleanup_task.await;
-                return Err(e);
+            let res = handle(warp_request).await;
+            if let Err(e) = &res {
+                error!(?e, error_msg = %e, "lambda failed");
             }
-
-            let _ = cleanup_task.await;
             res
         }
         .instrument(info_span!("searcher request", request_id));
         Box::pin(fut)
     }
+}
+
+async fn handle(warp_request: WarpRequest) -> Result<Response<LambdaBody>, LambdaError> {
+    let is_leaf = match warp_request.headers().get(lambda_header::IS_LEAF) {
+        Some(v) => v
+            .to_str()
+            .context(format!("header {} is not a string", lambda_header::IS_LEAF))?
+            .parse::<bool>()
+            .context(format!(
+                "header {} is not a boolean",
+                lambda_header::IS_LEAF
+            ))?,
+        None => false,
+    };
+
+    let (storage_resolver, warp_response, cleanup) = if is_leaf {
+        info!("Starting leaf lambda");
+        let (node_config, storage_resolver, metastore) = load_lambda_leaf_node_config().await?;
+        let (routes, cleanup) =
+            setup_leaf_searcher_api(node_config, storage_resolver.clone(), metastore).await;
+        let warp_response = warp::service(routes).call(warp_request).await?;
+        (storage_resolver, warp_response, cleanup)
+    } else {
+        info!("Starting root lambda");
+        let num_leafs: u16 = parse_num_leafs(&warp_request)?;
+        info!(num_leafs, "Parsed root lambda num_leafs");
+        let (node_config, storage_resolver, metastore) = load_lambda_root_node_config().await?;
+        let (routes, cleanup) =
+            setup_root_searcher_api(num_leafs, node_config, storage_resolver.clone(), metastore);
+        let warp_response = warp::service(routes).call(warp_request).await?;
+        (storage_resolver, warp_response, cleanup)
+    };
+    let cleanup_task = tokio::spawn(cleanup);
+
+    let res = create_lambda_response(warp_response, &storage_resolver).await;
+    if let Err(e) = res {
+        let _ = cleanup_task.await;
+        return Err(e);
+    }
+
+    let _ = cleanup_task.await;
+    res
 }
 
 async fn create_lambda_response(
