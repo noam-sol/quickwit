@@ -36,7 +36,7 @@ use quickwit_query::query_ast::{BoolQuery, QueryAst, QueryAstTransformer, RangeQ
 use quickwit_query::tokenizers::TokenizerManager;
 use quickwit_storage::{
     wrap_storage_with_cache, BundleStorage, ByteRangeCache, MemorySizedCache, OwnedBytes,
-    SplitCache, Storage, StorageResolver, TimeoutAndRetryStorage,
+    SplitCache, Storage, StorageResolver, StorageUsage, TimeoutAndRetryStorage,
 };
 use tantivy::aggregation::agg_req::{AggregationVariants, Aggregations};
 use tantivy::aggregation::AggregationLimitsGuard;
@@ -1378,7 +1378,7 @@ async fn resolve_storage_and_leaf_search(
     storage_credentials: StorageCredentials,
 ) -> crate::Result<LeafSearchResponse> {
     let storage = storage_resolver
-        .resolve(&index_uri, &storage_credentials)
+        .resolve(&index_uri, &storage_credentials, StorageUsage::Index)
         .await?;
     leaf_search(
         cancel,

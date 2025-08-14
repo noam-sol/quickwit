@@ -20,7 +20,7 @@ use std::str::FromStr;
 use anyhow::{Context, Result};
 use quickwit_common::uri::Uri;
 use quickwit_config::StorageCredentials;
-use quickwit_storage::StorageResolver;
+use quickwit_storage::{StorageResolver, StorageUsage};
 
 use crate::searcher::environment::BUCKET_PAYLOADS;
 
@@ -92,7 +92,11 @@ pub async fn response_hook(
         } => {
             let (bucket, prefix) = parse_s3_uri(&object_url).context("failed to parse s3 uri")?;
             let storage = storage_resolver
-                .resolve(&bucket, &StorageCredentials::default())
+                .resolve(
+                    &bucket,
+                    &StorageCredentials::default(),
+                    StorageUsage::default(),
+                )
                 .await
                 .context("failed to resolve storage")?;
             storage
@@ -179,7 +183,11 @@ pub async fn fetch_content(storage: StorageResolver, mut payload: Vec<u8>) -> Re
             let path: Uri = content.as_str().parse()?;
             let (bucket, prefix) = parse_s3_uri(&path).context("failed to parse s3 uri")?;
             let storage = storage
-                .resolve(&bucket, &StorageCredentials::default())
+                .resolve(
+                    &bucket,
+                    &StorageCredentials::default(),
+                    StorageUsage::default(),
+                )
                 .await?;
 
             let out_vec = storage
@@ -206,6 +214,7 @@ pub mod test {
     use quickwit_config::{StorageBackend, StorageCredentials};
     use quickwit_storage::{
         RamStorageFactory, Storage, StorageFactory, StorageResolver, StorageResolverError,
+        StorageUsage,
     };
 
     use crate::searcher::lambda_response::{fetch_content, response_hook, ConstructLambdaResponse};
@@ -238,6 +247,7 @@ pub mod test {
             .resolve(
                 &Uri::from_str(S3_URL).unwrap(),
                 &StorageCredentials::default(),
+                StorageUsage::default(),
             )
             .await
             .unwrap();
@@ -313,6 +323,7 @@ pub mod test {
             .resolve(
                 &Uri::from_str(S3_URL_PREFIX).unwrap(),
                 &StorageCredentials::default(),
+                StorageUsage::default(),
             )
             .await
             .unwrap();
@@ -347,10 +358,11 @@ pub mod test {
             &self,
             uri: &Uri,
             credentials: &StorageCredentials,
+            storage_usage: StorageUsage,
         ) -> Result<Arc<dyn Storage>, StorageResolverError> {
             let uri = Uri::from_str(uri.as_str().replace(S3_URL_PREFIX, RAM_URL_PREFIX).as_ref())
                 .unwrap();
-            self.inner.resolve(&uri, credentials).await
+            self.inner.resolve(&uri, credentials, storage_usage).await
         }
     }
 }

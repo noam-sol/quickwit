@@ -24,7 +24,7 @@ use tracing::info;
 
 use super::OpendalStorage;
 use crate::debouncer::DebouncedStorage;
-use crate::{Storage, StorageFactory, StorageResolverError};
+use crate::{Storage, StorageFactory, StorageResolverError, StorageUsage};
 
 /// Google cloud storage resolver.
 pub struct GoogleCloudStorageFactory {
@@ -48,6 +48,7 @@ impl StorageFactory for GoogleCloudStorageFactory {
         &self,
         uri: &Uri,
         _: &StorageCredentials,
+        _: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let storage = from_uri(&self.storage_config, uri)?;
         Ok(Arc::new(DebouncedStorage::new(storage)))

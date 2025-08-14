@@ -36,7 +36,7 @@ use quickwit_proto::metastore::{
 };
 use quickwit_proto::types::{IndexUid, SplitId};
 use quickwit_proto::{ServiceError, ServiceErrorCode};
-use quickwit_storage::{StorageResolver, StorageResolverError};
+use quickwit_storage::{StorageResolver, StorageResolverError, StorageUsage};
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -176,7 +176,11 @@ impl IndexService {
         let index_config = index_metadata.into_index_config();
         let storage = self
             .storage_resolver
-            .resolve(&index_config.index_uri, &index_config.storage_credentials)
+            .resolve(
+                &index_config.index_uri,
+                &index_config.storage_credentials,
+                StorageUsage::Index,
+            )
             .await?;
 
         if dry_run {
@@ -359,7 +363,11 @@ impl IndexService {
         let index_config = index_metadata.into_index_config();
         let storage = self
             .storage_resolver
-            .resolve(&index_config.index_uri, &index_config.storage_credentials)
+            .resolve(
+                &index_config.index_uri,
+                &index_config.storage_credentials,
+                StorageUsage::Index,
+            )
             .await?;
 
         let deleted_entries = run_garbage_collect(
@@ -401,6 +409,7 @@ impl IndexService {
             .resolve(
                 index_metadata.index_uri(),
                 &index_config.storage_credentials,
+                StorageUsage::Index,
             )
             .await?;
         let list_splits_request = ListSplitsRequest::try_from_index_uid(index_uid.clone())?;
@@ -559,7 +568,11 @@ pub async fn validate_storage_uri(
     index_config: &IndexConfig,
 ) -> anyhow::Result<()> {
     storage_resolver
-        .resolve(&index_config.index_uri, &index_config.storage_credentials)
+        .resolve(
+            &index_config.index_uri,
+            &index_config.storage_credentials,
+            StorageUsage::Index,
+        )
         .await?;
     Ok(())
 }
@@ -632,6 +645,7 @@ mod tests {
             .resolve(
                 &Uri::for_test("ram://indexes/test-index"),
                 &StorageCredentials::default(),
+                StorageUsage::Index,
             )
             .await
             .unwrap();

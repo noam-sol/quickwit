@@ -326,13 +326,21 @@ message SplitSearchError {
   bool retryable_error = 3;
 }
 
-// S3 specific storage credentials
-message S3StorageCredentials {
-  // Optional role ARN to assume for S3 operations
-  optional string role_arn = 1;
+message AssumeRole {
+  // role ARN to assume for S3 operations
+  string role_arn = 1;
 
   // Optional external ID to use when assuming the role
   optional string external_id = 2;
+}
+
+// S3 specific storage credentials
+message S3StorageCredentials {
+  // role to access data bucket and index bucket if index_role is not defined.
+  optional AssumeRole role = 1;
+
+  // role to access index bucket
+  optional AssumeRole index_role = 2;
 
   // Optional KMS Key ID to use when SSE-KMS is used
   optional string kms_key_id = 3;

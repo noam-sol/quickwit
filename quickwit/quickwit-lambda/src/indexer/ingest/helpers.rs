@@ -46,7 +46,7 @@ use quickwit_proto::metastore::{
 };
 use quickwit_proto::types::PipelineUid;
 use quickwit_search::SearchJobPlacer;
-use quickwit_storage::StorageResolver;
+use quickwit_storage::{StorageResolver, StorageUsage};
 use quickwit_telemetry::payload::{QuickwitFeature, QuickwitTelemetryInfo, TelemetryEvent};
 use tracing::{debug, info, instrument};
 
@@ -111,7 +111,11 @@ pub(super) async fn load_index_config(
     // The index config is stored in a storage which should be in the same account as quickwit.
     // As the StorageCredentials are mainly used for cross-account access, we use the default.
     let index_config_storage = resolver
-        .resolve(&dir, &StorageCredentials::default())
+        .resolve(
+            &dir,
+            &StorageCredentials::default(),
+            StorageUsage::default(),
+        )
         .await?;
     let bytes = index_config_storage.get_all(file).await?;
     let mut index_config = load_index_config_from_user_config(

@@ -35,7 +35,7 @@ use quickwit_metastore::{
 };
 use quickwit_proto::metastore::{CreateIndexRequest, MetastoreService, MetastoreServiceClient};
 use quickwit_proto::types::{IndexUid, NodeId, PipelineUid, SourceId};
-use quickwit_storage::{Storage, StorageResolver};
+use quickwit_storage::{Storage, StorageResolver, StorageUsage};
 use serde_json::Value as JsonValue;
 
 use crate::actors::IndexingService;
@@ -110,7 +110,11 @@ impl TestSandbox {
         let indexer_config = IndexerConfig::for_test()?;
         let num_blocking_threads = 1;
         let storage = storage_resolver
-            .resolve(&index_uri, &StorageCredentials::default())
+            .resolve(
+                &index_uri,
+                &StorageCredentials::default(),
+                StorageUsage::default(),
+            )
             .await?;
         let universe = Universe::with_accelerated_time();
         let merge_scheduler_mailbox = universe.get_or_spawn_one();

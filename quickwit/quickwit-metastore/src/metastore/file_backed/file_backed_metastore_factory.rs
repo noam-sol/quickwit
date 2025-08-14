@@ -22,7 +22,7 @@ use once_cell::sync::OnceCell;
 use quickwit_common::uri::Uri;
 use quickwit_config::{MetastoreBackend, MetastoreConfig, StorageCredentials};
 use quickwit_proto::metastore::{MetastoreError, MetastoreServiceClient};
-use quickwit_storage::{StorageResolver, StorageResolverError};
+use quickwit_storage::{StorageResolver, StorageResolverError, StorageUsage};
 use regex::Regex;
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -120,7 +120,11 @@ impl MetastoreFactory for FileBackedMetastoreFactory {
         // mainly for cross-account access.
         let storage = self
             .storage_resolver
-            .resolve(&uri, &StorageCredentials::default())
+            .resolve(
+                &uri,
+                &StorageCredentials::default(),
+                StorageUsage::default(),
+            )
             .await
             .map_err(|err| match err {
                 StorageResolverError::InvalidConfig(message) => {

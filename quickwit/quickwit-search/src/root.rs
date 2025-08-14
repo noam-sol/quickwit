@@ -31,10 +31,10 @@ use quickwit_proto::metastore::{
     ListIndexesMetadataRequest, MetastoreService, MetastoreServiceClient,
 };
 use quickwit_proto::search::{
-    FetchDocsRequest, FetchDocsResponse, Hit, IndexStorageAccess, LeafHit, LeafRequestRef,
-    LeafSearchRequest, LeafSearchResponse, PartialHit, S3StorageCredentials, SearchPlanResponse,
-    SearchRequest, SearchResponse, SnippetRequest, SortDatetimeFormat, SortField, SortValue,
-    SplitIdAndFooterOffsets, StorageCredentials as ProtoStorageCredentials,
+    AssumeRole, FetchDocsRequest, FetchDocsResponse, Hit, IndexStorageAccess, LeafHit,
+    LeafRequestRef, LeafSearchRequest, LeafSearchResponse, PartialHit, S3StorageCredentials,
+    SearchPlanResponse, SearchRequest, SearchResponse, SnippetRequest, SortDatetimeFormat,
+    SortField, SortValue, SplitIdAndFooterOffsets, StorageCredentials as ProtoStorageCredentials,
 };
 use quickwit_proto::types::{IndexUid, SplitId};
 use quickwit_query::query_ast::{
@@ -1801,8 +1801,14 @@ pub fn convert_config_credentials_to_proto(
         .s3
         .as_ref()
         .map(|s3_creds| S3StorageCredentials {
-            role_arn: s3_creds.role_arn.clone(),
-            external_id: s3_creds.external_id.clone(),
+            role: s3_creds.role.as_ref().map(|role| AssumeRole {
+                role_arn: role.role_arn.clone(),
+                external_id: role.external_id.clone(),
+            }),
+            index_role: s3_creds.role.as_ref().map(|role| AssumeRole {
+                role_arn: role.role_arn.clone(),
+                external_id: role.external_id.clone(),
+            }),
             kms_key_id: s3_creds.kms_key_id.clone(),
         });
 
@@ -1824,15 +1830,24 @@ pub fn proto_storage_to_config_credentials(
     proto_creds: &quickwit_proto::search::StorageCredentials,
 ) -> StorageCredentials {
     if let Some(s3_proto) = proto_creds.s3.as_ref() {
-        if s3_proto.role_arn.is_some() || s3_proto.external_id.is_some() {
-            return StorageCredentials {
-                s3: Some(quickwit_config::S3StorageCredentials {
-                    role_arn: s3_proto.role_arn.clone(),
-                    external_id: s3_proto.external_id.clone(),
-                    kms_key_id: s3_proto.kms_key_id.clone(),
+        return StorageCredentials {
+            s3: Some(quickwit_config::S3StorageCredentials {
+                role: s3_proto
+                    .role
+                    .as_ref()
+                    .map(|role| quickwit_config::AssumeRoleCredentials {
+                        role_arn: role.role_arn.clone(),
+                        external_id: role.external_id.clone(),
+                    }),
+                index_role: s3_proto.index_role.as_ref().map(|role| {
+                    quickwit_config::AssumeRoleCredentials {
+                        role_arn: role.role_arn.clone(),
+                        external_id: role.external_id.clone(),
+                    }
                 }),
-            };
-        }
+                kms_key_id: s3_proto.kms_key_id.clone(),
+            }),
+        };
     }
 
     StorageCredentials::default()

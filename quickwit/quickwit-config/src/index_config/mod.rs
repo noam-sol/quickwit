@@ -275,11 +275,20 @@ pub struct StorageCredentials {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
+pub struct AssumeRoleCredentials {
+    #[serde(default)]
+    pub role_arn: String,
+    #[serde(default)]
+    pub external_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct S3StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub role_arn: Option<String>,
+    pub role: Option<AssumeRoleCredentials>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub external_id: Option<String>,
+    pub index_role: Option<AssumeRoleCredentials>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kms_key_id: Option<String>,
 }
@@ -289,22 +298,6 @@ impl StorageCredentials {
         let Some(s3_creds) = &self.s3 else {
             return Ok(());
         };
-
-        if let Some(role_arn) = &s3_creds.role_arn {
-            if !role_arn.starts_with("arn:aws:iam::") {
-                return Err(anyhow::anyhow!(
-                    "Invalid role ARN format: {}. Expected format: \
-                     arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
-                    role_arn
-                ));
-            }
-        }
-
-        if s3_creds.external_id.is_some() && s3_creds.role_arn.is_none() {
-            return Err(anyhow::anyhow!(
-                "S3 external ID can only be used with role ARN, but no role ARN was provided"
-            ));
-        }
 
         if let Some(kms_key_id) = &s3_creds.kms_key_id {
             if !kms_key_id.starts_with("arn:aws:kms:") {
@@ -316,19 +309,27 @@ impl StorageCredentials {
             }
         }
 
+        if let Some(role) = s3_creds.role.as_ref() {
+            Self::validate_arn(role.role_arn.as_ref())?;
+        }
+
+        if let Some(role) = s3_creds.index_role.as_ref() {
+            Self::validate_arn(role.role_arn.as_ref())?;
+        }
+
         Ok(())
     }
 
-    pub fn get_s3_role_arn(&self) -> Option<&str> {
-        self.s3
-            .as_ref()
-            .and_then(|s3_creds| s3_creds.role_arn.as_deref())
-    }
+    pub fn validate_arn(arn: &str) -> Result<(), anyhow::Error> {
+        if !arn.starts_with("arn:aws:iam::") {
+            return Err(anyhow::anyhow!(
+                "Invalid role ARN format: {}. Expected format: \
+                 arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
+                arn
+            ));
+        }
 
-    pub fn get_s3_external_id(&self) -> Option<&str> {
-        self.s3
-            .as_ref()
-            .and_then(|s3_creds| s3_creds.external_id.as_deref())
+        Ok(())
     }
 }
 
@@ -616,8 +617,11 @@ mod tests {
         // Valid setup with role ARN
         let storage_credentials = StorageCredentials {
             s3: Some(S3StorageCredentials {
-                role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
-                external_id: None,
+                role: Some(AssumeRoleCredentials {
+                    role_arn: "arn:aws:iam::123456789012:role/my-role".to_string(),
+                    external_id: None,
+                }),
+                index_role: None,
                 kms_key_id: None,
             }),
         };
@@ -626,8 +630,11 @@ mod tests {
         // Invalid role ARN format (error)
         let storage_credentials = StorageCredentials {
             s3: Some(S3StorageCredentials {
-                role_arn: Some("invalid-role-arn".to_string()),
-                external_id: None,
+                role: Some(AssumeRoleCredentials {
+                    role_arn: "invalid-role-arn".to_string(),
+                    external_id: None,
+                }),
+                index_role: None,
                 kms_key_id: None,
             }),
         };
@@ -641,31 +648,21 @@ mod tests {
         // Valid role ARN with external ID and kms key id (valid)
         let storage_credentials = StorageCredentials {
             s3: Some(S3StorageCredentials {
-                role_arn: Some("arn:aws:iam::123456789012:role/my-role".to_string()),
-                external_id: Some("my-external-id".to_string()),
+                role: Some(AssumeRoleCredentials {
+                    role_arn: "arn:aws:iam::123456789012:role/my-role".to_string(),
+                    external_id: Some("my-external-id".to_string()),
+                }),
+                index_role: None,
                 kms_key_id: Some("arn:aws:kms:us-east-1:123456789012/key".to_string()),
             }),
         };
         assert!(storage_credentials.validate().is_ok());
 
-        // External ID without role ARN (error)
-        let storage_credentials = StorageCredentials {
-            s3: Some(S3StorageCredentials {
-                role_arn: None,
-                external_id: Some("my-external-id".to_string()),
-                kms_key_id: None,
-            }),
-        };
-        let error = storage_credentials.validate().unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("S3 external ID can only be used with role ARN"));
-
         // Invalid KMS Key ID
         let storage_credentials = StorageCredentials {
             s3: Some(S3StorageCredentials {
-                role_arn: None,
-                external_id: None,
+                role: None,
+                index_role: None,
                 kms_key_id: Some("invalid-kms-key-id".to_string()),
             }),
         };

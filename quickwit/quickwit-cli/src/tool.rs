@@ -52,7 +52,7 @@ use quickwit_search::{single_node_search, SearchResponseRest};
 use quickwit_serve::{
     search_request_from_api_request, BodyFormat, SearchRequestQueryString, SortBy,
 };
-use quickwit_storage::{BundleStorage, OwnedBytes, Storage, StorageResolver};
+use quickwit_storage::{BundleStorage, OwnedBytes, Storage, StorageResolver, StorageUsage};
 use thousands::Separable;
 use tracing::{debug, info};
 
@@ -767,6 +767,7 @@ async fn extract_split_cli(args: ExtractSplitArgs) -> anyhow::Result<()> {
         .resolve(
             index_metadata.index_uri(),
             &index_metadata.index_config().storage_credentials,
+            StorageUsage::default(),
         )
         .await?;
     let split_file = PathBuf::from(format!("{}.split", args.split_id));
@@ -793,7 +794,11 @@ async fn extract_split_file_cli(args: ExtractSplitFileArgs) -> anyhow::Result<()
     println!("❯ Extracting split file...");
 
     let index_storage = StorageResolver::unconfigured()
-        .resolve(&Uri::for_test("./"), &StorageCredentials::default())
+        .resolve(
+            &Uri::for_test("./"),
+            &StorageCredentials::default(),
+            StorageUsage::default(),
+        )
         .await?;
     let split_data = OwnedBytes::new(tokio::fs::read(&args.file).await?);
     let (_hotcache_bytes, bundle_storage) =
