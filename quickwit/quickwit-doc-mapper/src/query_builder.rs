@@ -330,7 +330,7 @@ impl<'a, 'b: 'a> QueryAstVisitor<'a> for ExtractPrefixTermRanges<'b> {
     }
 
     fn visit_wildcard(&mut self, wildcard_query: &'a WildcardQuery) -> Result<(), Self::Err> {
-        let (field, regex_terms) =
+        let (field, regex_terms, _) =
             match wildcard_query.to_regex_terms(self.schema, self.tokenizer_manager) {
                 Ok(res) => res,
                 /* the query will be nullified when casting to a tantivy ast */

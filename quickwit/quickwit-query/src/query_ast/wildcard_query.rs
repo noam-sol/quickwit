@@ -25,6 +25,9 @@ use crate::query_ast::{AutomatonQuery, JsonPathPrefix, TantivyQueryAst};
 use crate::tokenizers::TokenizerManager;
 use crate::{find_field_or_hit_dynamic, InvalidQuery};
 
+/// When slop is required - this slop vlaue will be used.
+const REQUIRE_SLOP_VALUE: u32 = 5000;
+
 /// A Wildcard query allows to match 'bond' with a query like 'b*d'.
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
 pub struct WildcardQuery {
@@ -108,20 +111,17 @@ fn score_to_reverse(score: &[usize], token_parts: &[SubQuery]) -> bool {
     score.first().unwrap() < score.last().unwrap()
 }
 
-fn push_token(
-    tokens: &mut Vec<(String, bool)>,
-    score: &mut Vec<usize>,
+fn token_parts_to_token(
     mut token_parts: Vec<SubQuery>,
+    score: &[usize],
     suffix: bool,
     case_insensitive: bool,
-) {
+) -> (String, bool) {
     let reverse = if suffix {
         score_to_reverse(score, &token_parts)
     } else {
         false
     };
-
-    score.clear();
 
     if reverse {
         token_parts = token_parts.into_iter().rev().collect();
@@ -143,7 +143,7 @@ fn push_token(
         token = format!("(?i){token}");
     }
 
-    tokens.push((token, reverse));
+    (token, reverse)
 }
 
 fn sub_query_parts_to_regex_tokens(
@@ -152,13 +152,13 @@ fn sub_query_parts_to_regex_tokens(
     tokenizer_manager: &TokenizerManager,
     case_insensitive: bool,
     suffix: bool,
-) -> anyhow::Result<Vec<(String, bool)>> {
+) -> anyhow::Result<(Vec<(String, bool)>, bool)> {
     let mut tokenizer = tokenizer_manager
         .get_tokenizer(tokenizer_name)
         .with_context(|| format!("no tokenizer named `{tokenizer_name}` is registered"))?;
     let lowercaser = tokenizer_manager.is_lowercaser(tokenizer_name);
 
-    let mut tokens = Vec::new();
+    let mut parts = Vec::new();
     let mut current = Vec::new();
     let mut last = LastToken::None;
     let mut current_score = Vec::new();
@@ -178,13 +178,10 @@ fn sub_query_parts_to_regex_tokens(
                     if (!text_to_match.starts_with(&token.text) && matches!(last, LastToken::Regex))
                         || matches!(last, LastToken::Text)
                     {
-                        push_token(
-                            &mut tokens,
-                            &mut current_score,
+                        parts.push((
                             std::mem::take(&mut current),
-                            suffix,
-                            case_insensitive,
-                        );
+                            std::mem::take(&mut current_score),
+                        ));
                     }
 
                     current_score.push(token.text.len());
@@ -203,13 +200,10 @@ fn sub_query_parts_to_regex_tokens(
             }
             SubQuery::Wildcard | SubQuery::QuestionMark => {
                 if !matches!(last, LastToken::None) {
-                    push_token(
-                        &mut tokens,
-                        &mut current_score,
+                    parts.push((
                         std::mem::take(&mut current),
-                        suffix,
-                        case_insensitive,
-                    );
+                        std::mem::take(&mut current_score),
+                    ));
                     current_score.push(0);
                 }
 
@@ -220,16 +214,35 @@ fn sub_query_parts_to_regex_tokens(
     }
 
     if !current.is_empty() {
-        push_token(
-            &mut tokens,
-            &mut current_score,
-            current,
-            suffix,
-            case_insensitive,
-        );
+        parts.push((
+            std::mem::take(&mut current),
+            std::mem::take(&mut current_score),
+        ));
     }
 
-    Ok(tokens)
+    let num_parts = parts.len();
+    let mut require_slop = false;
+
+    let mut tokens = Vec::new();
+    for (i, (token_parts, score)) in parts.into_iter().enumerate() {
+        if token_parts.len() == 1 {
+            let part = token_parts.first().unwrap();
+            if matches!(part, SubQuery::Wildcard) {
+                if i > 0 && i < num_parts - 1 {
+                    require_slop = true;
+                }
+                continue;
+            }
+        }
+        tokens.push(token_parts_to_token(
+            token_parts,
+            &score,
+            suffix,
+            case_insensitive,
+        ));
+    }
+
+    Ok((tokens, require_slop))
 }
 
 #[derive(Debug)]
@@ -256,7 +269,7 @@ impl WildcardQuery {
         &self,
         schema: &TantivySchema,
         tokenizer_manager: &TokenizerManager,
-    ) -> Result<(Field, RegexTerms), InvalidQuery> {
+    ) -> Result<(Field, RegexTerms, bool), InvalidQuery> {
         let Some((field, field_entry, json_path)) = find_field_or_hit_dynamic(&self.field, schema)
         else {
             return Err(InvalidQuery::FieldDoesNotExist {
@@ -279,7 +292,7 @@ impl WildcardQuery {
                     .tokenizer
                     .as_deref()
                     .unwrap_or(text_field_indexing.tokenizer());
-                let tokens = sub_query_parts_to_regex_tokens(
+                let (tokens, require_slop) = sub_query_parts_to_regex_tokens(
                     sub_query_parts,
                     tokenizer_name,
                     tokenizer_manager,
@@ -302,7 +315,7 @@ impl WildcardQuery {
                     )
                 };
 
-                Ok((field, regex_terms))
+                Ok((field, regex_terms, require_slop))
             }
             FieldType::JsonObject(json_options) => {
                 let text_field_indexing =
@@ -316,7 +329,7 @@ impl WildcardQuery {
                     .tokenizer
                     .as_deref()
                     .unwrap_or(text_field_indexing.tokenizer());
-                let tokens = sub_query_parts_to_regex_tokens(
+                let (tokens, require_slop) = sub_query_parts_to_regex_tokens(
                     sub_query_parts,
                     tokenizer_name,
                     tokenizer_manager,
@@ -357,7 +370,7 @@ impl WildcardQuery {
                     )
                 };
 
-                Ok((field, regex_terms))
+                Ok((field, regex_terms, require_slop))
             }
             _ => Err(InvalidQuery::SchemaError(
                 "trying to run a Wildcard query on a non-text field".to_string(),
@@ -374,13 +387,14 @@ impl BuildTantivyAst for WildcardQuery {
         _search_fields: &[String],
         _with_validation: bool,
     ) -> Result<TantivyQueryAst, InvalidQuery> {
-        let (field, regex_terms) = match self.to_regex_terms(schema, tokenizer_manager) {
-            Ok(res) => res,
-            Err(InvalidQuery::FieldDoesNotExist { .. }) if self.lenient => {
-                return Ok(TantivyQueryAst::match_none())
-            }
-            Err(e) => return Err(e),
-        };
+        let (field, regex_terms, require_slop) =
+            match self.to_regex_terms(schema, tokenizer_manager) {
+                Ok(res) => res,
+                Err(InvalidQuery::FieldDoesNotExist { .. }) if self.lenient => {
+                    return Ok(TantivyQueryAst::match_none())
+                }
+                Err(e) => return Err(e),
+            };
 
         match regex_terms {
             RegexTerms::One(json_path, term_text, reverse) => {
@@ -406,7 +420,13 @@ impl BuildTantivyAst for WildcardQuery {
                 }
                 let mut regex_query_with_path =
                     RegexPhraseQuery::new_with_term_offset_slop_and_reverse(
-                        field, terms, self.slop,
+                        field,
+                        terms,
+                        if require_slop && self.slop == 0 {
+                            REQUIRE_SLOP_VALUE
+                        } else {
+                            self.slop
+                        },
                     );
                 regex_query_with_path.set_must_start(self.must_start);
                 regex_query_with_path.set_must_end(self.must_end);
@@ -469,7 +489,8 @@ mod tests {
         schema_builder.add_text_field("text_field", text_options);
         let schema = schema_builder.build();
 
-        let (_field, regex_terms) = query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
+        let (_field, regex_terms, require_slop) =
+            query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
         let RegexTerms::Many(terms) = regex_terms else {
             panic!("expected mutiple terms");
         };
@@ -477,6 +498,7 @@ mod tests {
             terms,
             vec!["MyString", "Wh1ch.a\\.nOrMal", "Tokenizer", "would.*cut"],
         );
+        assert!(!require_slop);
     }
 
     #[test]
@@ -496,7 +518,8 @@ mod tests {
         schema_builder.add_json_field("json_field", text_options);
         let schema = schema_builder.build();
 
-        let (_field, regex_terms) = query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
+        let (_field, regex_terms, require_slop) =
+            query.to_regex_terms(&schema, &tokenizer_manager).unwrap();
         let RegexTerms::Many(terms) = regex_terms else {
             panic!("expected mutiple terms");
         };
@@ -504,6 +527,7 @@ mod tests {
             terms,
             vec!["MyString", "Wh1ch.a\\.nOrMal", "Tokenizer", "would.*cut"],
         );
+        assert!(!require_slop);
     }
 
     #[test]
@@ -531,7 +555,7 @@ mod tests {
     fn test_parse_complex_wildcard() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
-        let tokens =
+        let (tokens, require_slop) =
             sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
         assert_eq!(
             tokens,
@@ -542,6 +566,7 @@ mod tests {
                 (".it.*".to_string(), false),
             ]
         );
+        assert!(!require_slop);
         Ok(())
     }
 
@@ -549,7 +574,7 @@ mod tests {
     fn test_parse_complex_wildcard_case_insensitive() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
-        let tokens =
+        let (tokens, require_slop) =
             sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, true, false)?;
         assert_eq!(
             tokens,
@@ -560,6 +585,7 @@ mod tests {
                 ("(?i).it.*".to_string(), false),
             ]
         );
+        assert!(!require_slop);
         Ok(())
     }
 
@@ -567,7 +593,7 @@ mod tests {
     fn test_parse_complex_wildcard_case_insensitive_lowercaser() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?it*");
-        let tokens =
+        let (tokens, require_slop) =
             sub_query_parts_to_regex_tokens(parts, "default", &tokenizer_manager, true, false)?;
         assert_eq!(
             tokens,
@@ -578,6 +604,7 @@ mod tests {
                 ("(?i).it.*".to_string(), false),
             ]
         );
+        assert!(!require_slop);
         Ok(())
     }
 
@@ -585,7 +612,7 @@ mod tests {
     fn test_parse_complex_wildcard_suffix() -> anyhow::Result<()> {
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("ha* t* *o ?ito");
-        let tokens =
+        let (tokens, require_slop) =
             sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, true)?;
         assert_eq!(
             tokens,
@@ -596,6 +623,7 @@ mod tests {
                 ("oti.".to_string(), true),
             ]
         );
+        assert!(!require_slop);
         Ok(())
     }
 
@@ -604,7 +632,7 @@ mod tests {
         // This is an edge case that didn't work previously.
         let tokenizer_manager = create_default_quickwit_tokenizer_manager();
         let parts = parse_wildcard_query("22tes*22 22*EST22");
-        let tokens =
+        let (tokens, require_slop) =
             sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
         assert_eq!(
             tokens,
@@ -613,6 +641,46 @@ mod tests {
                 ("22.*EST22".to_string(), false),
             ]
         );
+        assert!(!require_slop);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_wildcard_require_slop_at_start() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("* Scenario com");
+        let (tokens, require_slop) =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
+        assert_eq!(
+            tokens,
+            vec![("Scenario".to_string(), false), ("com".to_string(), false)]
+        );
+        assert!(!require_slop);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_wildcard_require_slop_at_end() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("Scenario *");
+        let (tokens, require_slop) =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
+        assert_eq!(tokens, vec![("Scenario".to_string(), false)]);
+        assert!(!require_slop);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_wildcard_require_slop_at_middle() -> anyhow::Result<()> {
+        let tokenizer_manager = create_default_quickwit_tokenizer_manager();
+        let parts = parse_wildcard_query("abc * com");
+        let (tokens, require_slop) =
+            sub_query_parts_to_regex_tokens(parts, "whitespace", &tokenizer_manager, false, false)?;
+        assert_eq!(
+            tokens,
+            vec![("abc".to_string(), false), ("com".to_string(), false)]
+        );
+        assert!(require_slop);
         Ok(())
     }
 }
