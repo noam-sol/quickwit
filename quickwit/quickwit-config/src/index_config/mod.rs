@@ -290,7 +290,7 @@ pub struct S3StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_role: Option<AssumeRoleCredentials>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kms_key_id: Option<String>,
+    pub index_kms_key_id: Option<String>,
 }
 
 impl StorageCredentials {
@@ -299,7 +299,7 @@ impl StorageCredentials {
             return Ok(());
         };
 
-        if let Some(kms_key_id) = &s3_creds.kms_key_id {
+        if let Some(kms_key_id) = &s3_creds.index_kms_key_id {
             if !kms_key_id.starts_with("arn:aws:kms:") {
                 return Err(anyhow::anyhow!(
                     "Invalid KMS ARN format: {}. Expected format: \
@@ -622,7 +622,7 @@ mod tests {
                     external_id: None,
                 }),
                 index_role: None,
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         assert!(storage_credentials.validate().is_ok());
@@ -635,7 +635,7 @@ mod tests {
                     external_id: None,
                 }),
                 index_role: None,
-                kms_key_id: None,
+                index_kms_key_id: None,
             }),
         };
         let error = storage_credentials.validate().unwrap_err();
@@ -653,7 +653,7 @@ mod tests {
                     external_id: Some("my-external-id".to_string()),
                 }),
                 index_role: None,
-                kms_key_id: Some("arn:aws:kms:us-east-1:123456789012/key".to_string()),
+                index_kms_key_id: Some("arn:aws:kms:us-east-1:123456789012/key".to_string()),
             }),
         };
         assert!(storage_credentials.validate().is_ok());
@@ -663,7 +663,7 @@ mod tests {
             s3: Some(S3StorageCredentials {
                 role: None,
                 index_role: None,
-                kms_key_id: Some("invalid-kms-key-id".to_string()),
+                index_kms_key_id: Some("invalid-kms-key-id".to_string()),
             }),
         };
         let error = storage_credentials.validate().unwrap_err();
