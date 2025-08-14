@@ -138,6 +138,7 @@ pub enum TokenizerType {
     Simple,
     SourceCode,
     Whitespace,
+    #[serde(rename = "simple_ignore_uuid", alias = "simple_ignore_u_u_i_d")]
     SimpleIgnoreUUID,
 }
 
