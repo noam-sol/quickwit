@@ -342,8 +342,8 @@ message S3StorageCredentials {
   // role to access index bucket
   optional AssumeRole index_role = 2;
 
-  // Optional KMS Key ID for the index bucket to use when SSE-KMS is used
-  optional string index_kms_key_id = 3;
+  // Optional KMS Key ID to use when SSE-KMS is used
+  optional string kms_key_id = 3;
 }
 
 // Storage credentials for accessing storage services
