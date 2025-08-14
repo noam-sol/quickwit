@@ -27,7 +27,7 @@ use humantime::parse_duration;
 use quickwit_common::uri::Uri;
 use quickwit_doc_mapper::{DocMapper, DocMapperBuilder, DocMapping};
 use quickwit_proto::types::IndexId;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 pub use serialize::{load_index_config_from_user_config, load_index_config_update};
 use siphasher::sip::SipHasher;
 use tracing::warn;
@@ -266,14 +266,14 @@ pub struct IndexConfig {
     pub storage_credentials: StorageCredentials,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
+#[derive(Clone, Debug, Default, Serialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3: Option<S3StorageCredentials>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
+#[derive(Clone, Debug, Default, Serialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AssumeRoleCredentials {
     #[serde(default)]
@@ -282,7 +282,7 @@ pub struct AssumeRoleCredentials {
     pub external_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
+#[derive(Clone, Debug, Default, Serialize, PartialEq, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct S3StorageCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -291,6 +291,103 @@ pub struct S3StorageCredentials {
     pub index_role: Option<AssumeRoleCredentials>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_kms_key_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct OldS3StorageCredentials {
+    #[serde(default)]
+    pub role_arn: Option<String>,
+    #[serde(default)]
+    pub external_id: Option<String>,
+    #[serde(default)]
+    pub kms_key_id: Option<String>,
+}
+
+// New shape, but we’ll deserialize into it via the compat path
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewS3StorageCredentialsCompat {
+    #[serde(default)]
+    pub role: Option<AssumeRoleCredentials>,
+    #[serde(default)]
+    pub index_role: Option<AssumeRoleCredentials>,
+    #[serde(default)]
+    pub index_kms_key_id: Option<String>,
+}
+
+// Accept either new or old with an untagged enum
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum S3CredsCompat {
+    New(NewS3StorageCredentialsCompat),
+    Old(OldS3StorageCredentials),
+}
+
+#[derive(Deserialize)]
+struct StorageCredentialsCompat {
+    #[serde(default)]
+    pub s3: Option<S3CredsCompat>,
+}
+
+impl From<S3CredsCompat> for S3StorageCredentials {
+    fn from(c: S3CredsCompat) -> Self {
+        match c {
+            S3CredsCompat::New(n) => S3StorageCredentials {
+                role: n.role,
+                index_role: n.index_role,
+                index_kms_key_id: n.index_kms_key_id,
+            },
+            S3CredsCompat::Old(o) => {
+                // Map the old flat fields to the new nested structure.
+                // - old.role_arn/external_id -> new.role
+                // - old.kms_key_id -> new.index_kms_key_id
+                let role = if o.role_arn.is_some() || o.external_id.is_some() {
+                    Some(AssumeRoleCredentials {
+                        role_arn: o.role_arn.unwrap_or_default(),
+                        external_id: o.external_id,
+                    })
+                } else {
+                    None
+                };
+
+                S3StorageCredentials {
+                    role,
+                    index_role: None,
+                    index_kms_key_id: o.kms_key_id,
+                }
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for StorageCredentials {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let compat = StorageCredentialsCompat::deserialize(deserializer)?;
+        Ok(StorageCredentials {
+            s3: compat.s3.map(Into::into),
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for AssumeRoleCredentials {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // default derive is fine; keep explicit to show intent
+        #[derive(Deserialize)]
+        struct Inner {
+            #[serde(default)]
+            role_arn: String,
+            #[serde(default)]
+            external_id: Option<String>,
+        }
+        let Inner {
+            role_arn,
+            external_id,
+        } = Inner::deserialize(deserializer)?;
+        Ok(AssumeRoleCredentials {
+            role_arn,
+            external_id,
+        })
+    }
 }
 
 impl StorageCredentials {
@@ -607,6 +704,7 @@ mod tests {
 
     use cron::TimeUnitSpec;
     use quickwit_doc_mapper::ModeType;
+    use serde_json::json;
 
     use super::*;
     use crate::merge_policy_config::MergePolicyConfig;
@@ -1042,5 +1140,60 @@ mod tests {
         schedule_test_helper_fn("weekly");
         schedule_test_helper_fn("monthly");
         schedule_test_helper_fn("* * * ? * ?");
+    }
+
+    #[test]
+    fn deserializes_old_flat() {
+        let v = json!({
+          "s3": {
+            "role_arn": "arn:aws:iam::123:role/ingest",
+            "external_id": "abc",
+            "kms_key_id": "kms-1"
+          }
+        });
+        let sc: StorageCredentials = serde_json::from_value(v).unwrap();
+        let s3 = sc.s3.unwrap();
+        assert_eq!(
+            s3.role.as_ref().unwrap().role_arn,
+            "arn:aws:iam::123:role/ingest"
+        );
+        assert_eq!(s3.role.unwrap().external_id.as_deref(), Some("abc"));
+        assert_eq!(s3.index_kms_key_id.as_deref(), Some("kms-1"));
+        assert!(s3.index_role.is_none());
+
+        let v = json!({
+          "s3": {
+            "role_arn": "arn:aws:iam::123:role/ingest",
+            "external_id": "abc",
+          }
+        });
+        let sc: StorageCredentials = serde_json::from_value(v).unwrap();
+        let s3 = sc.s3.unwrap();
+        assert_eq!(
+            s3.role.as_ref().unwrap().role_arn,
+            "arn:aws:iam::123:role/ingest"
+        );
+        assert_eq!(s3.role.unwrap().external_id.as_deref(), Some("abc"));
+        assert_eq!(s3.index_kms_key_id.as_deref(), None);
+        assert!(s3.index_role.is_none());
+    }
+
+    #[test]
+    fn deserializes_new_nested() {
+        let v = json!({
+          "s3": {
+            "role": { "role_arn": "arn:aws:iam::123:role/ingest", "external_id": "abc" },
+            "index_role": { "role_arn": "arn:aws:iam::123:role/indexer" },
+            "index_kms_key_id": "kms-2"
+          }
+        });
+        let sc: StorageCredentials = serde_json::from_value(v).unwrap();
+        let s3 = sc.s3.unwrap();
+        assert_eq!(s3.role.unwrap().role_arn, "arn:aws:iam::123:role/ingest");
+        assert_eq!(
+            s3.index_role.unwrap().role_arn,
+            "arn:aws:iam::123:role/indexer"
+        );
+        assert_eq!(s3.index_kms_key_id.as_deref(), Some("kms-2"));
     }
 }
