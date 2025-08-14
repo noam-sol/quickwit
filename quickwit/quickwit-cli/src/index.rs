@@ -36,7 +36,7 @@ use quickwit_proto::types::IndexId;
 use quickwit_rest_client::models::{IngestSource, SearchResponseRestClient};
 use quickwit_rest_client::rest_client::{CommitType, IngestEvent};
 use quickwit_serve::{ListSplitsQueryParams, SearchRequestQueryString, SortBy};
-use quickwit_storage::{load_file, StorageResolver, StorageUsage};
+use quickwit_storage::{load_file, StorageResolver};
 use tabled::settings::object::{FirstRow, Rows, Segment};
 use tabled::settings::panel::Footer;
 use tabled::settings::{Alignment, Disable, Format, Modify, Panel, Rotate, Style};
@@ -501,7 +501,6 @@ pub async fn create_index_cli(args: CreateIndexArgs) -> anyhow::Result<()> {
         &storage_resolver,
         &args.index_config_uri,
         &StorageCredentials::default(),
-        StorageUsage::default(),
     )
     .await?;
     let index_config_str: String = std::str::from_utf8(&file_content)
@@ -536,7 +535,6 @@ pub async fn update_index_cli(args: UpdateIndexArgs) -> anyhow::Result<()> {
         &storage_resolver,
         &args.index_config_uri,
         &StorageCredentials::default(),
-        StorageUsage::default(),
     )
     .await?;
     let index_config_str = std::str::from_utf8(&file_content)

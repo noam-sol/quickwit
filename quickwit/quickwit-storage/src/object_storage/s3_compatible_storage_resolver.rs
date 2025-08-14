@@ -18,13 +18,12 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use aws_sdk_s3::Client as S3Client;
 use quickwit_common::uri::Uri;
-use quickwit_config::{AssumeRoleCredentials, S3StorageConfig, StorageBackend, StorageCredentials};
+use quickwit_config::{S3StorageConfig, StorageBackend, StorageCredentials};
 use tracing::{debug, info};
 
 use super::s3_compatible_storage::create_s3_client;
 use crate::{
     DebouncedStorage, S3CompatibleObjectStorage, Storage, StorageFactory, StorageResolverError,
-    StorageUsage,
 };
 
 /// Cache key for S3 clients, combining role ARN and external ID
@@ -102,20 +101,6 @@ impl S3CompatibleObjectStorageFactory {
     }
 }
 
-fn get_role(
-    storage_credentials: &StorageCredentials,
-    storage_usage: StorageUsage,
-) -> Option<&AssumeRoleCredentials> {
-    storage_credentials
-        .s3
-        .as_ref()
-        .and_then(|s3| match storage_usage {
-            StorageUsage::Data => s3.role.as_ref(),
-            StorageUsage::Index => s3.index_role.as_ref().or(s3.role.as_ref()),
-            _ => None,
-        })
-}
-
 #[async_trait]
 impl StorageFactory for S3CompatibleObjectStorageFactory {
     fn backend(&self) -> StorageBackend {
@@ -126,12 +111,17 @@ impl StorageFactory for S3CompatibleObjectStorageFactory {
         &self,
         uri: &Uri,
         storage_credentials: &StorageCredentials,
-        storage_usage: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
-        let selected_role_opt = get_role(storage_credentials, storage_usage);
-        let role_arn_opt = selected_role_opt.map(|role| role.role_arn.clone());
+        let role_arn_opt = storage_credentials
+            .s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.role_arn.as_deref())
+            .map(ToString::to_string);
 
-        let external_id_opt = selected_role_opt.and_then(|role| role.external_id.clone());
+        let external_id_opt = storage_credentials
+            .s3
+            .as_ref()
+            .and_then(|s3_creds| s3_creds.external_id.as_deref().map(|s| s.to_string()));
 
         let s3_client = self
             .get_or_create_client(role_arn_opt, external_id_opt)
@@ -151,98 +141,9 @@ impl StorageFactory for S3CompatibleObjectStorageFactory {
 
 #[cfg(test)]
 mod tests {
-    use quickwit_config::{S3StorageConfig, S3StorageCredentials};
+    use quickwit_config::S3StorageConfig;
 
     use super::*;
-
-    #[test]
-    fn test_get_role() {
-        let res = get_role(
-            &StorageCredentials {
-                s3: Some(S3StorageCredentials {
-                    role: None,
-                    index_role: None,
-                    kms_key_id: None,
-                }),
-            },
-            StorageUsage::Data,
-        );
-        assert_eq!(res, None);
-
-        let storage_credentials = StorageCredentials {
-            s3: Some(S3StorageCredentials {
-                role: Some(AssumeRoleCredentials {
-                    role_arn: "arn".to_string(),
-                    external_id: None,
-                }),
-                index_role: None,
-                kms_key_id: None,
-            }),
-        };
-        let res = get_role(&storage_credentials, StorageUsage::Data);
-        assert_ne!(res, None);
-        assert_eq!(res.unwrap().role_arn, "arn");
-        assert_eq!(res.unwrap().external_id, None);
-
-        let storage_credentials = StorageCredentials {
-            s3: Some(S3StorageCredentials {
-                role: Some(AssumeRoleCredentials {
-                    role_arn: "arn".to_string(),
-                    external_id: Some("external-id".to_string()),
-                }),
-                index_role: None,
-                kms_key_id: None,
-            }),
-        };
-        let res = get_role(&storage_credentials, StorageUsage::Data);
-        assert_ne!(res, None);
-        assert_eq!(res.as_ref().unwrap().role_arn, "arn");
-        assert_eq!(
-            res.as_ref().unwrap().external_id.clone().unwrap(),
-            "external-id"
-        );
-
-        // Test fallback to data, when Index is requested
-        let storage_credentials = StorageCredentials {
-            s3: Some(S3StorageCredentials {
-                role: Some(AssumeRoleCredentials {
-                    role_arn: "arn".to_string(),
-                    external_id: Some("external-id".to_string()),
-                }),
-                index_role: None,
-                kms_key_id: None,
-            }),
-        };
-        let res = get_role(&storage_credentials, StorageUsage::Index);
-        assert_ne!(res, None);
-        assert_eq!(res.as_ref().unwrap().role_arn, "arn");
-        assert_eq!(
-            res.as_ref().unwrap().external_id.clone().unwrap(),
-            "external-id"
-        );
-
-        // Test use of an index role when requested
-        let storage_credentials = StorageCredentials {
-            s3: Some(S3StorageCredentials {
-                role: Some(AssumeRoleCredentials {
-                    role_arn: "arn".to_string(),
-                    external_id: Some("external-id".to_string()),
-                }),
-                index_role: Some(AssumeRoleCredentials {
-                    role_arn: "index_arn".to_string(),
-                    external_id: Some("external-id2".to_string()),
-                }),
-                kms_key_id: None,
-            }),
-        };
-        let res = get_role(&storage_credentials, StorageUsage::Index);
-        assert_ne!(res, None);
-        assert_eq!(res.as_ref().unwrap().role_arn, "index_arn");
-        assert_eq!(
-            res.as_ref().unwrap().external_id.clone().unwrap(),
-            "external-id2"
-        );
-    }
 
     #[tokio::test]
     async fn test_client_cache() {

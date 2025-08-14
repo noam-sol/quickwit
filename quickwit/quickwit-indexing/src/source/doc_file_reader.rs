@@ -24,7 +24,7 @@ use quickwit_config::StorageCredentials;
 use quickwit_metastore::checkpoint::PartitionId;
 use quickwit_proto::metastore::SourceType;
 use quickwit_proto::types::Position;
-use quickwit_storage::{StorageResolver, StorageUsage};
+use quickwit_storage::StorageResolver;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
 
 use super::{BatchBuilder, BATCH_NUM_BYTES_LIMIT};
@@ -100,7 +100,7 @@ impl DocFileReader {
     ) -> anyhow::Result<Self> {
         let (dir_uri, file_name) = dir_and_filename(uri).context("dir_and_filename")?;
         let storage = storage_resolver
-            .resolve(&dir_uri, storage_credentials, StorageUsage::Data)
+            .resolve(&dir_uri, storage_credentials)
             .await
             .context("storage resolve")?;
         let file_size = storage

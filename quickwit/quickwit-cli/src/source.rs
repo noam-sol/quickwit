@@ -22,7 +22,7 @@ use quickwit_common::uri::Uri;
 use quickwit_config::{validate_identifier, ConfigFormat, SourceConfig, StorageCredentials};
 use quickwit_metastore::checkpoint::SourceCheckpoint;
 use quickwit_proto::types::{IndexId, SourceId};
-use quickwit_storage::{load_file, StorageResolver, StorageUsage};
+use quickwit_storage::{load_file, StorageResolver};
 use serde_json::Value as JsonValue;
 use tabled::{Table, Tabled};
 use tracing::debug;
@@ -373,7 +373,6 @@ async fn create_source_cli(args: CreateSourceArgs) -> anyhow::Result<()> {
         &storage_resolver,
         &args.source_config_uri,
         &StorageCredentials::default(),
-        StorageUsage::default(),
     )
     .await?;
     let source_config_str: &str = std::str::from_utf8(&source_config_content)
@@ -396,7 +395,6 @@ async fn update_source_cli(args: UpdateSourceArgs) -> anyhow::Result<()> {
         &storage_resolver,
         &args.source_config_uri,
         &StorageCredentials::default(),
-        StorageUsage::default(),
     )
     .await?;
     let source_config_str: &str = std::str::from_utf8(&source_config_content)

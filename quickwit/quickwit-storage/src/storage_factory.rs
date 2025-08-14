@@ -20,20 +20,6 @@ use quickwit_config::{StorageBackend, StorageCredentials};
 
 use crate::{Storage, StorageResolverError};
 
-/// Usage for the storage
-#[derive(Copy, Clone, Default)]
-pub enum StorageUsage {
-    /// Usage should not affect how the storage is created
-    #[default]
-    None,
-
-    /// Storage is used to read data from source
-    Data,
-
-    /// Storage is used to read and write index split files
-    Index,
-}
-
 /// A storage factory builds a [`Storage`] object for a target [`StorageBackend`] from a
 /// [`Uri`].
 #[cfg_attr(any(test, feature = "testsuite"), mockall::automock)]
@@ -47,7 +33,6 @@ pub trait StorageFactory: Send + Sync + 'static {
         &self,
         uri: &Uri,
         storage_credentials: &StorageCredentials,
-        storage_usage: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError>;
 }
 
@@ -75,7 +60,6 @@ impl StorageFactory for UnsupportedStorage {
         &self,
         _uri: &Uri,
         _: &StorageCredentials,
-        _: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         Err(StorageResolverError::UnsupportedBackend(
             self.message.to_string(),

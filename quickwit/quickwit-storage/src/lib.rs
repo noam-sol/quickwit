@@ -81,7 +81,7 @@ pub use self::split::{SplitPayload, SplitPayloadBuilder};
 pub use self::storage::MockStorage;
 #[cfg(any(test, feature = "testsuite"))]
 pub use self::storage_factory::MockStorageFactory;
-pub use self::storage_factory::{StorageFactory, StorageUsage, UnsupportedStorage};
+pub use self::storage_factory::{StorageFactory, UnsupportedStorage};
 pub use self::storage_resolver::StorageResolver;
 #[cfg(feature = "integration-testsuite")]
 pub use self::test_suite::{
@@ -99,13 +99,12 @@ pub async fn load_file(
     storage_resolver: &StorageResolver,
     uri: &Uri,
     storage_credentials: &StorageCredentials,
-    storage_usage: StorageUsage,
 ) -> anyhow::Result<OwnedBytes> {
     let parent = uri
         .parent()
         .ok_or_else(|| anyhow::anyhow!("URI `{uri}` is not a valid file URI"))?;
     let storage = storage_resolver
-        .resolve(&parent, storage_credentials, storage_usage)
+        .resolve(&parent, storage_credentials)
         .await?;
     let file_name = uri
         .file_name()
@@ -158,8 +157,7 @@ mod tests {
             load_file(
                 &storage_resolver,
                 &Uri::from_str("Cargo.toml").unwrap(),
-                &StorageCredentials::default(),
-                StorageUsage::default(),
+                &StorageCredentials::default()
             )
             .await
             .unwrap()

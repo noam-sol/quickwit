@@ -53,7 +53,7 @@ use quickwit_proto::metastore::{
     MetastoreServiceClient,
 };
 use quickwit_proto::types::{IndexId, IndexUid, NodeId, PipelineUid, ShardId};
-use quickwit_storage::{StorageResolver, StorageUsage};
+use quickwit_storage::StorageResolver;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::sync::Semaphore;
@@ -281,13 +281,9 @@ impl IndexingService {
                 let message = format!("failed to create indexing directory: {error}");
                 IndexingError::Internal(message)
             })?;
-        let index_storage = self
+        let storage = self
             .storage_resolver
-            .resolve(
-                &index_config.index_uri,
-                &index_config.storage_credentials,
-                StorageUsage::Index,
-            )
+            .resolve(&index_config.index_uri, &index_config.storage_credentials)
             .await
             .map_err(|error| {
                 let message = format!("failed to spawn indexing pipeline: {error}");
@@ -296,8 +292,7 @@ impl IndexingService {
         let merge_policy =
             crate::merge_policy::merge_policy_from_settings(&index_config.indexing_settings);
         let retention_policy = index_config.retention_policy_opt.clone();
-        let split_store =
-            IndexingSplitStore::new(index_storage.clone(), self.local_split_store.clone());
+        let split_store = IndexingSplitStore::new(storage.clone(), self.local_split_store.clone());
 
         let doc_mapper = build_doc_mapper(&index_config.doc_mapping, &index_config.search_settings)
             .map_err(|error| IndexingError::Internal(error.to_string()))?;
@@ -345,6 +340,7 @@ impl IndexingService {
         let pipeline_params = IndexingPipelineParams {
             pipeline_id: indexing_pipeline_id.clone(),
             metastore: self.metastore.clone(),
+            storage,
 
             // Indexing-related parameters
             doc_mapper,

@@ -107,7 +107,7 @@ use quickwit_proto::metastore::{
     MetastoreServiceClient, SourceType,
 };
 use quickwit_proto::types::{IndexUid, NodeIdRef, PipelineUid, ShardId};
-use quickwit_storage::{StorageResolver, StorageUsage};
+use quickwit_storage::StorageResolver;
 use serde_json::Value as JsonValue;
 pub use source_factory::{SourceFactory, SourceLoader, TypedSourceFactory};
 use tokio::runtime::Handle;
@@ -433,7 +433,7 @@ pub async fn check_source_connectivity(
             // We currently don't support extra credentials for file source since we only
             // use sqs notifications.
             let storage = storage_resolver
-                .resolve(&dir_uri, &StorageCredentials::default(), StorageUsage::Data)
+                .resolve(&dir_uri, &StorageCredentials::default())
                 .await?;
             storage.file_num_bytes(file_name).await?;
             Ok(())

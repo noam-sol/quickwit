@@ -26,9 +26,7 @@ use crate::ram_storage::RamStorageFactory;
 use crate::AzureBlobStorageFactory;
 #[cfg(feature = "gcs")]
 use crate::GoogleCloudStorageFactory;
-use crate::{
-    S3CompatibleObjectStorageFactory, Storage, StorageFactory, StorageResolverError, StorageUsage,
-};
+use crate::{S3CompatibleObjectStorageFactory, Storage, StorageFactory, StorageResolverError};
 
 /// Returns the [`Storage`] instance associated with the protocol of a URI. The actual creation of
 /// storage objects is delegated to pre-registered [`StorageFactory`]. The resolver is only
@@ -55,7 +53,6 @@ impl StorageResolver {
         &self,
         uri: &Uri,
         storage_credentials: &StorageCredentials,
-        storage_usage: StorageUsage,
     ) -> Result<Arc<dyn Storage>, StorageResolverError> {
         let backend = match uri.protocol() {
             Protocol::Azure => StorageBackend::Azure,
@@ -75,9 +72,7 @@ impl StorageResolver {
             let message = format!("no storage factory is registered for {}", uri.protocol());
             StorageResolverError::UnsupportedBackend(message)
         })?;
-        let storage = storage_factory
-            .resolve(uri, storage_credentials, storage_usage)
-            .await?;
+        let storage = storage_factory.resolve(uri, storage_credentials).await?;
         Ok(storage)
     }
 
@@ -190,7 +185,7 @@ mod tests {
             .returning(|| StorageBackend::Ram);
         ram_storage_factory
             .expect_resolve()
-            .returning(|_uri, _credentials, _usage| {
+            .returning(|_uri, _credentials| {
                 Ok(Arc::new(
                     RamStorage::builder()
                         .put("hello", b"hello_content_second")
@@ -203,11 +198,7 @@ mod tests {
             .build()
             .unwrap();
         let storage = storage_resolver
-            .resolve(
-                &Uri::for_test("ram:///"),
-                &StorageCredentials::default(),
-                StorageUsage::default(),
-            )
+            .resolve(&Uri::for_test("ram:///"), &StorageCredentials::default())
             .await?;
         let data = storage.get_all(Path::new("hello")).await?;
         assert_eq!(&data[..], b"hello_content_second");
@@ -227,7 +218,7 @@ mod tests {
             .returning(|| StorageBackend::Ram);
         second_ram_storage_factory
             .expect_resolve()
-            .returning(|uri, _credentials, _usage| {
+            .returning(|uri, _credentials| {
                 assert_eq!(uri.as_str(), "ram:///home");
                 Ok(Arc::new(
                     RamStorage::builder()
@@ -244,7 +235,6 @@ mod tests {
             .resolve(
                 &Uri::for_test("ram:///home"),
                 &StorageCredentials::default(),
-                StorageUsage::default(),
             )
             .await?;
         let data = storage.get_all(Path::new("hello")).await?;
@@ -257,11 +247,7 @@ mod tests {
         let storage_resolver = StorageResolver::unconfigured();
         let storage_uri = Uri::for_test("postgresql://localhost:5432/metastore");
         let resolver_error = storage_resolver
-            .resolve(
-                &storage_uri,
-                &StorageCredentials::default(),
-                StorageUsage::default(),
-            )
+            .resolve(&storage_uri, &StorageCredentials::default())
             .await
             .unwrap_err();
         assert!(matches!(

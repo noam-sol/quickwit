@@ -27,7 +27,7 @@ use quickwit_proto::metastore::{
     ListIndexesMetadataRequest, MetastoreService, MetastoreServiceClient,
 };
 use quickwit_proto::types::IndexUid;
-use quickwit_storage::{Storage, StorageResolver, StorageUsage};
+use quickwit_storage::{Storage, StorageResolver};
 use serde::Serialize;
 use tracing::{debug, error, info};
 
@@ -111,7 +111,7 @@ impl GarbageCollector {
             async move {
                 let index_uid = index.index_uid.clone();
                 let index_uri = index.index_uri();
-                let storage = match storage_resolver.resolve(index_uri, &index.index_config().storage_credentials, StorageUsage::Index).await {
+                let storage = match storage_resolver.resolve(index_uri, &index.index_config().storage_credentials).await {
                     Ok(storage) => storage,
                     Err(error) => {
                         error!(index=%index.index_id(), error=?error, "failed to resolve the index storage Uri");
