@@ -18,7 +18,7 @@ use anyhow::Context;
 use quickwit_common::metrics::IntCounter;
 use sync_wrapper::SyncWrapper;
 use tokio::sync::watch;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::envelope::Envelope;
 use crate::mailbox::{create_mailbox, Inbox};
@@ -314,7 +314,7 @@ impl<A: Actor> ActorExecutionEnv<A> {
             if self.inbox.is_empty() {
                 // No one will be able to send us more messages.
                 // We can exit the actor.
-                info!(actor = self.ctx.actor_instance_id(), "no more messages");
+                debug!(actor = self.ctx.actor_instance_id(), "no more messages");
                 return Err(ActorExitStatus::Success);
             }
         }
@@ -354,7 +354,7 @@ impl<A: Actor> ActorExecutionEnv<A> {
                 error!(exit_status=?exit_status, "actor-failure");
             }
         }
-        info!(actor_id = %self.ctx.actor_instance_id(), exit_status = %exit_status, "actor-exit");
+        debug!(actor_id = %self.ctx.actor_instance_id(), exit_status = %exit_status, "actor-exit");
         self.ctx.exit(exit_status);
     }
 }
