@@ -5122,4 +5122,153 @@ mod tests {
         assert_eq!(search_response.failed_splits.len(), 1);
         Ok(())
     }
+
+    use quickwit_config::{
+        AssumeRoleCredentials as CfgAssumeRole, S3StorageCredentials as CfgS3,
+        StorageCredentials as CfgCreds,
+    };
+    use quickwit_proto::search::{
+        AssumeRole as ProtoAssumeRole, S3StorageCredentials as ProtoS3,
+        StorageCredentials as ProtoCreds,
+    };
+
+    fn proto_assume_role(arn: &str, ext: Option<&str>) -> ProtoAssumeRole {
+        ProtoAssumeRole {
+            role_arn: arn.to_string(),
+            external_id: ext.map(|s| s.to_string()),
+        }
+    }
+
+    fn proto_s3_full() -> ProtoS3 {
+        ProtoS3 {
+            role: Some(proto_assume_role(
+                "arn:aws:iam::111111111111:role/main",
+                Some("ext-1"),
+            )),
+            index_role: Some(proto_assume_role(
+                "arn:aws:iam::111111111111:role/index",
+                None,
+            )),
+            index_kms_key_id: Some("kms-key-123".to_string()),
+        }
+    }
+
+    fn cfg_assume_role(arn: &str, ext: Option<&str>) -> CfgAssumeRole {
+        CfgAssumeRole {
+            role_arn: arn.to_string(),
+            external_id: ext.map(|s| s.to_string()),
+        }
+    }
+
+    fn cfg_s3_full() -> CfgS3 {
+        CfgS3 {
+            role: Some(cfg_assume_role(
+                "arn:aws:iam::111111111111:role/main",
+                Some("ext-1"),
+            )),
+            index_role: Some(cfg_assume_role(
+                "arn:aws:iam::111111111111:role/index",
+                None,
+            )),
+            index_kms_key_id: Some("kms-key-123".to_string()),
+        }
+    }
+
+    #[test]
+    fn proto_to_config_full_s3() {
+        let proto = ProtoCreds {
+            s3: Some(proto_s3_full()),
+        };
+
+        let cfg = proto_storage_to_config_credentials(&proto);
+
+        let s3 = cfg.s3.expect("expected s3 creds");
+        let role = s3.role.expect("role should be set");
+        assert_eq!(role.role_arn, "arn:aws:iam::111111111111:role/main");
+        assert_eq!(role.external_id.as_deref(), Some("ext-1"));
+        let index_role = s3.index_role.expect("index_role should be set");
+        assert_eq!(index_role.role_arn, "arn:aws:iam::111111111111:role/index");
+        assert_eq!(index_role.external_id, None);
+        assert_eq!(s3.index_kms_key_id.as_deref(), Some("kms-key-123"));
+    }
+
+    #[test]
+    fn proto_to_config_empty_defaults() {
+        let proto = ProtoCreds { s3: None };
+
+        let cfg = proto_storage_to_config_credentials(&proto);
+        assert!(cfg.s3.is_none());
+    }
+
+    #[test]
+    fn config_to_proto_full_s3() {
+        let cfg = CfgCreds {
+            s3: Some(cfg_s3_full()),
+        };
+
+        let proto = convert_config_credentials_to_proto(&cfg);
+
+        let s3 = proto.s3.expect("expected s3 creds");
+        let role = s3.role.expect("role should be set");
+        assert_eq!(role.role_arn, "arn:aws:iam::111111111111:role/main");
+        assert_eq!(role.external_id.as_deref(), Some("ext-1"));
+        let index_role = s3.index_role.expect("index_role should be set");
+        assert_eq!(index_role.role_arn, "arn:aws:iam::111111111111:role/index");
+        assert_eq!(index_role.external_id, None);
+        assert_eq!(s3.index_kms_key_id.as_deref(), Some("kms-key-123"));
+    }
+
+    #[test]
+    fn config_to_proto_empty() {
+        let cfg = CfgCreds { s3: None };
+
+        let proto = convert_config_credentials_to_proto(&cfg);
+        assert!(proto.s3.is_none());
+    }
+
+    #[test]
+    fn round_trip_proto_to_config_to_proto() {
+        let original = ProtoCreds {
+            s3: Some(ProtoS3 {
+                role: Some(proto_assume_role("arn:aws:iam::222222222222:role/a", None)),
+                index_role: None,
+                index_kms_key_id: None,
+            }),
+        };
+
+        let cfg = proto_storage_to_config_credentials(&original);
+        let back = convert_config_credentials_to_proto(&cfg);
+
+        let back_s3 = back.s3.expect("s3 must be present");
+        assert_eq!(
+            back_s3.role.unwrap().role_arn,
+            "arn:aws:iam::222222222222:role/a"
+        );
+        assert!(back_s3.index_role.is_none());
+        assert!(back_s3.index_kms_key_id.is_none());
+    }
+
+    #[test]
+    fn round_trip_config_to_proto_to_config() {
+        let original = CfgCreds {
+            s3: Some(CfgS3 {
+                role: None,
+                index_role: Some(cfg_assume_role(
+                    "arn:aws:iam::333333333333:role/indexer",
+                    Some("idx-ext"),
+                )),
+                index_kms_key_id: Some("kms-xyz".to_string()),
+            }),
+        };
+
+        let proto = convert_config_credentials_to_proto(&original);
+        let back = proto_storage_to_config_credentials(&proto);
+
+        let back_s3 = back.s3.expect("s3 must be present");
+        assert!(back_s3.role.is_none());
+        let idx = back_s3.index_role.unwrap();
+        assert_eq!(idx.role_arn, "arn:aws:iam::333333333333:role/indexer");
+        assert_eq!(idx.external_id.as_deref(), Some("idx-ext"));
+        assert_eq!(back_s3.index_kms_key_id.as_deref(), Some("kms-xyz"));
+    }
 }
