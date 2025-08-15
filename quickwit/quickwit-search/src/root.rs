@@ -1805,7 +1805,7 @@ pub fn convert_config_credentials_to_proto(
                 role_arn: role.role_arn.clone(),
                 external_id: role.external_id.clone(),
             }),
-            index_role: s3_creds.role.as_ref().map(|role| AssumeRole {
+            index_role: s3_creds.index_role.as_ref().map(|role| AssumeRole {
                 role_arn: role.role_arn.clone(),
                 external_id: role.external_id.clone(),
             }),
