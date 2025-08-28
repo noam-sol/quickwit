@@ -69,12 +69,7 @@ impl Actor for MergeExecutor {
     fn observable_state(&self) -> Self::ObservableState {}
 
     fn queue_capacity(&self) -> QueueCapacity {
-        // It was set to Bounded(1), not sure why.
-        // The MergeExecutor receives `MergeScratch` messages from the `MergeSplitDownloader`,
-        // which in turn gets messages from the `MergeSchedulerService` via the
-        // `schedule_pending_merges` function. That function is already bounded by the
-        // `merge_concurrency` configuration.
-        QueueCapacity::Unbounded
+        QueueCapacity::Bounded(1)
     }
 
     fn name(&self) -> String {
