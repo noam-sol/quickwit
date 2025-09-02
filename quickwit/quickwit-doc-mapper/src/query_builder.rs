@@ -697,7 +697,7 @@ mod test {
         check_build_query_static_mode(
             "ip:*",
             Vec::new(),
-            TestExpectation::Ok("ExistsQuery { field_name: \"ip\", json_subpaths: false }"),
+            TestExpectation::Ok("ExistsQuery { field_name: \"ip\", json_subpaths: true }"),
         );
         check_build_query_static_mode(
             "json_text:*",
@@ -707,7 +707,7 @@ mod test {
         check_build_query_static_mode(
             "json_fast:*",
             Vec::new(),
-            TestExpectation::Ok("ExistsQuery { field_name: \"json_fast\", json_subpaths: false }"),
+            TestExpectation::Ok("ExistsQuery { field_name: \"json_fast\", json_subpaths: true }"),
         );
         check_build_query_static_mode(
             "foo:*",
