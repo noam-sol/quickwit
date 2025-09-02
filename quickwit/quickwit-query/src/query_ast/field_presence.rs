@@ -78,7 +78,7 @@ fn build_existence_query(
         } else {
             format!("{}.{}", field_entry.name(), path)
         };
-        let exists_query = tantivy::query::ExistsQuery::new(full_path, true);
+        let exists_query = tantivy::query::ExistsQuery::new(full_path, false);
         TantivyQueryAst::from(exists_query)
     } else {
         // fallback to the presence field
