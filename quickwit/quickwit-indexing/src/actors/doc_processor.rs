@@ -24,7 +24,7 @@ use quickwit_common::metrics::IntCounter;
 use quickwit_common::rate_limited_tracing::rate_limited_warn;
 use quickwit_common::runtimes::RuntimeType;
 use quickwit_config::{SourceInputFormat, TransformConfig};
-use quickwit_doc_mapper::{DocMapper, DocParsingError, JsonObject};
+use quickwit_doc_mapper::{DocMapper, DocParsingError, JsonObject, INDEX_TIMESTAMP_FIELD};
 use quickwit_opentelemetry::otlp::{
     parse_otlp_logs_json, parse_otlp_logs_protobuf, parse_otlp_spans_json,
     parse_otlp_spans_protobuf, JsonLogIterator, JsonSpanIterator, OtlpLogsError, OtlpTracesError,
@@ -541,12 +541,13 @@ impl DocProcessor {
     }
 
     fn process_json_doc(&self, mut json_doc: JsonDoc) -> Result<ProcessedDoc, DocProcessorError> {
-        if !json_doc.json_obj.contains_key("_index_timestamp") {
-            if let Some(now) = serde_json::Number::from_f64(
-                time::OffsetDateTime::now_utc().unix_timestamp() as f64,
-            ) {
+        let index_datetime = time::OffsetDateTime::now_utc();
+
+        if !json_doc.json_obj.contains_key(INDEX_TIMESTAMP_FIELD) {
+            if let Some(now) = serde_json::Number::from_f64(index_datetime.unix_timestamp() as f64)
+            {
                 json_doc.json_obj.insert(
-                    "_index_timestamp".to_string(),
+                    INDEX_TIMESTAMP_FIELD.to_string(),
                     serde_json::Value::Number(now),
                 );
             }

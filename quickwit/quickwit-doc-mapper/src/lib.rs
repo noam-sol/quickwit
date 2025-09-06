@@ -54,6 +54,9 @@ pub const DYNAMIC_FIELD_NAME: &str = "_dynamic";
 /// Field name reserved for storing the length of source document.
 pub const DOCUMENT_SIZE_FIELD_NAME: &str = "_doc_length";
 
+/// Field name reserved for storing the index timestamp.
+pub const INDEX_TIMESTAMP_FIELD: &str = "_index_timestamp";
+
 /// Quickwit reserved field names.
 const QW_RESERVED_FIELD_NAMES: &[&str] = &[
     DOCUMENT_SIZE_FIELD_NAME,
