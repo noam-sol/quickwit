@@ -43,6 +43,12 @@ pub struct FieldCapabilityQueryParams {
     /// Non-ES Parameter. If set, restricts splits to documents with a `time_range.end <
     /// end_timestamp``.
     pub end_timestamp: Option<i64>,
+    /// Non-ES Parameter. If set, restricts splits to documents with a `index_time_range.start >=
+    /// start_index_timestamp`.
+    pub start_index_timestamp: Option<i64>,
+    /// Non-ES Parameter. If set, restricts splits to documents with a `index_time_range.end <
+    /// end_index_timestamp`.
+    pub end_index_timestamp: Option<i64>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize, PartialEq)]
@@ -189,5 +195,7 @@ pub fn build_list_field_request_for_es_api(
         fields: search_params.fields.unwrap_or_default(),
         start_timestamp: search_params.start_timestamp,
         end_timestamp: search_params.end_timestamp,
+        start_index_timestamp: search_params.start_index_timestamp,
+        end_index_timestamp: search_params.end_index_timestamp,
     })
 }

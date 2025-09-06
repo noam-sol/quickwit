@@ -323,6 +323,8 @@ pub async fn root_list_fields(
         index_uids,
         list_fields_req.start_timestamp,
         list_fields_req.end_timestamp,
+        list_fields_req.start_index_timestamp,
+        list_fields_req.end_index_timestamp,
         None,
         &mut metastore,
     )

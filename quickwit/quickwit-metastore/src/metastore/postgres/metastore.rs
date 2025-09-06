@@ -588,6 +588,8 @@ impl MetastoreService for PostgresqlMetastore {
         let mut split_ids = Vec::with_capacity(splits_metadata.len());
         let mut time_range_start_list = Vec::with_capacity(splits_metadata.len());
         let mut time_range_end_list = Vec::with_capacity(splits_metadata.len());
+        let mut index_time_range_start_list = Vec::with_capacity(splits_metadata.len());
+        let mut index_time_range_end_list = Vec::with_capacity(splits_metadata.len());
         let mut tags_list = Vec::with_capacity(splits_metadata.len());
         let mut splits_metadata_json = Vec::with_capacity(splits_metadata.len());
         let mut delete_opstamps = Vec::with_capacity(splits_metadata.len());
@@ -608,6 +610,15 @@ impl MetastoreService for PostgresqlMetastore {
             let time_range_end = split_metadata.time_range.map(|range| *range.end());
             time_range_end_list.push(time_range_end);
 
+            let index_time_range_start = split_metadata
+                .index_time_range
+                .as_ref()
+                .map(|range| *range.start());
+            index_time_range_start_list.push(index_time_range_start);
+
+            let index_time_range_end = split_metadata.index_time_range.map(|range| *range.end());
+            index_time_range_end_list.push(index_time_range_end);
+
             let tags: Vec<String> = split_metadata.tags.into_iter().collect();
             tags_list.push(sqlx::types::Json(tags));
             split_ids.push(split_metadata.split_id);
@@ -620,25 +631,29 @@ impl MetastoreService for PostgresqlMetastore {
         run_with_tx!(self.connection_pool, tx, "stage splits", {
             let upserted_split_ids: Vec<String> = sqlx::query_scalar(r#"
                 INSERT INTO splits
-                    (split_id, time_range_start, time_range_end, tags, split_metadata_json, delete_opstamp, maturity_timestamp, split_state, index_uid, node_id)
+                    (split_id, time_range_start, time_range_end, index_time_range_start, index_time_range_end, tags, split_metadata_json, delete_opstamp, maturity_timestamp, split_state, index_uid, node_id)
                 SELECT
                     split_id,
                     time_range_start,
                     time_range_end,
+                    index_time_range_start,
+                    index_time_range_end,
                     ARRAY(SELECT json_array_elements_text(tags_json::json)) as tags,
                     split_metadata_json,
                     delete_opstamp,
                     to_timestamp(maturity_timestamp),
-                    $9 as split_state,
-                    $10 as index_uid,
+                    $11 as split_state,
+                    $12 as index_uid,
                     node_id
                 FROM
-                    UNNEST($1, $2, $3, $4, $5, $6, $7, $8)
-                    AS staged_splits (split_id, time_range_start, time_range_end, tags_json, split_metadata_json, delete_opstamp, maturity_timestamp, node_id)
+                    UNNEST($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    AS staged_splits (split_id, time_range_start, time_range_end, index_time_range_start, index_time_range_end, tags_json, split_metadata_json, delete_opstamp, maturity_timestamp, node_id)
                 ON CONFLICT(index_uid, split_id) DO UPDATE
                     SET
                         time_range_start = excluded.time_range_start,
                         time_range_end = excluded.time_range_end,
+                        index_time_range_start = excluded.index_time_range_start,
+                        index_time_range_end = excluded.index_time_range_end,
                         tags = excluded.tags,
                         split_metadata_json = excluded.split_metadata_json,
                         delete_opstamp = excluded.delete_opstamp,
@@ -652,6 +667,8 @@ impl MetastoreService for PostgresqlMetastore {
                 .bind(&split_ids)
                 .bind(time_range_start_list)
                 .bind(time_range_end_list)
+                .bind(index_time_range_start_list)
+                .bind(index_time_range_end_list)
                 .bind(tags_list)
                 .bind(splits_metadata_json)
                 .bind(delete_opstamps)
@@ -2040,6 +2057,31 @@ mod tests {
         let sql = select_statement.column(Asterisk).from(Splits::Table);
 
         let query =
+            ListSplitsQuery::for_index(index_uid.clone()).with_index_time_range_start_gt(47);
+        append_query_filters_and_order_by(sql, &query);
+        assert_eq!(
+            sql.to_string(PostgresQueryBuilder),
+            format!(
+                r#"SELECT * FROM "splits" WHERE "index_uid" IN ('{index_uid}') AND ("index_time_range_end" > 47 OR "index_time_range_end" IS NULL)"#
+            )
+        );
+
+        let mut select_statement = Query::select();
+        let sql = select_statement.column(Asterisk).from(Splits::Table);
+
+        let query = ListSplitsQuery::for_index(index_uid.clone()).with_index_time_range_end_lt(47);
+        append_query_filters_and_order_by(sql, &query);
+        assert_eq!(
+            sql.to_string(PostgresQueryBuilder),
+            format!(
+                r#"SELECT * FROM "splits" WHERE "index_uid" IN ('{index_uid}') AND ("index_time_range_start" < 47 OR "index_time_range_start" IS NULL)"#
+            )
+        );
+
+        let mut select_statement = Query::select();
+        let sql = select_statement.column(Asterisk).from(Splits::Table);
+
+        let query =
             ListSplitsQuery::for_index(index_uid.clone()).with_tags_filter(TagFilterAst::Tag {
                 is_present: false,
                 tag: "tag-2".to_string(),
@@ -2117,12 +2159,14 @@ mod tests {
         let index_uid = IndexUid::new_with_random_ulid("test-index");
         let query = ListSplitsQuery::for_index(index_uid.clone())
             .with_time_range_start_gt(0)
-            .with_time_range_end_lt(40);
+            .with_time_range_end_lt(40)
+            .with_index_time_range_start_gt(1)
+            .with_index_time_range_end_lt(41);
         append_query_filters_and_order_by(sql, &query);
         assert_eq!(
             sql.to_string(PostgresQueryBuilder),
             format!(
-                r#"SELECT * FROM "splits" WHERE "index_uid" IN ('{index_uid}') AND ("time_range_end" > 0 OR "time_range_end" IS NULL) AND ("time_range_start" < 40 OR "time_range_start" IS NULL)"#
+                r#"SELECT * FROM "splits" WHERE "index_uid" IN ('{index_uid}') AND ("time_range_end" > 0 OR "time_range_end" IS NULL) AND ("time_range_start" < 40 OR "time_range_start" IS NULL) AND ("index_time_range_end" > 1 OR "index_time_range_end" IS NULL) AND ("index_time_range_start" < 41 OR "index_time_range_start" IS NULL)"#
             )
         );
 

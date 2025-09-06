@@ -19,6 +19,7 @@ use futures::{StreamExt, TryStreamExt};
 use quickwit_common::uri::Uri;
 use quickwit_config::{build_doc_mapper, StorageCredentials};
 use quickwit_doc_mapper::tag_pruning::extract_tags_from_query;
+use quickwit_doc_mapper::INDEX_TIMESTAMP_FIELD;
 use quickwit_metastore::IndexMetadataResponseExt;
 use quickwit_proto::metastore::{IndexMetadataRequest, MetastoreService, MetastoreServiceClient};
 use quickwit_proto::search::{LeafSearchStreamRequest, SearchRequest, SearchStreamRequest};
@@ -69,6 +70,13 @@ pub async fn root_search_stream(
         );
     }
 
+    refine_start_end_timestamp_from_ast(
+        &query_ast_resolved,
+        INDEX_TIMESTAMP_FIELD,
+        &mut search_stream_request.start_index_timestamp,
+        &mut search_stream_request.end_index_timestamp,
+    );
+
     // Validates the query by effectively building it against the current schema.
     doc_mapper.query(doc_mapper.schema(), &query_ast_resolved, true)?;
     search_stream_request.query_ast = serde_json::to_string(&query_ast_resolved)?;
@@ -78,6 +86,8 @@ pub async fn root_search_stream(
         vec![index_uid],
         search_request.start_timestamp,
         search_request.end_timestamp,
+        search_request.start_index_timestamp,
+        search_request.end_index_timestamp,
         tags_filter_ast,
         &mut metastore,
     )

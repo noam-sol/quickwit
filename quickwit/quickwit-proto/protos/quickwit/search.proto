@@ -132,6 +132,12 @@ message ListFieldsRequest {
 
   // Control if the the request will fail if split_ids contains a split that does not exist.
   // optional bool fail_on_missing_index = 6;
+
+  // Index time filter, expressed in seconds since epoch.
+  // That filter is to be interpreted as the semi-open interval:
+  // [start_index_timestamp, end_index_timestamp).
+  optional int64 start_index_timestamp = 100;
+  optional int64 end_index_timestamp = 101;
 }
 
 message LeafListFieldsRequest {
@@ -247,6 +253,12 @@ message SearchRequest {
   optional PartialHit search_after = 16;
 
   CountHits count_hits = 17;
+
+  // Index time filter, expressed in seconds since epoch.
+  // That filter is to be interpreted as the semi-open interval:
+  // [start_index_timestamp, end_index_timestamp).
+  optional int64 start_index_timestamp = 100;
+  optional int64 end_index_timestamp = 101;
 }
 
 enum CountHits {
@@ -674,6 +686,10 @@ message SearchStreamRequest {
 
   // Fields to extract snippet on.
   repeated string snippet_fields = 10;
+
+  // The index time filter is interpreted as a semi-open interval. [start, end)
+  optional int64 start_index_timestamp = 100;
+  optional int64 end_index_timestamp = 101;
 }
 
 message LeafSearchStreamRequest {

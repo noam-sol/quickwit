@@ -81,6 +81,13 @@ pub struct ListFieldsRequest {
     pub start_timestamp: ::core::option::Option<i64>,
     #[prost(int64, optional, tag = "4")]
     pub end_timestamp: ::core::option::Option<i64>,
+    /// Index time filter, expressed in seconds since epoch.
+    /// That filter is to be interpreted as the semi-open interval:
+    /// [start_index_timestamp, end_index_timestamp).
+    #[prost(int64, optional, tag = "100")]
+    pub start_index_timestamp: ::core::option::Option<i64>,
+    #[prost(int64, optional, tag = "101")]
+    pub end_index_timestamp: ::core::option::Option<i64>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -197,6 +204,13 @@ pub struct SearchRequest {
     pub search_after: ::core::option::Option<PartialHit>,
     #[prost(enumeration = "CountHits", tag = "17")]
     pub count_hits: i32,
+    /// Index time filter, expressed in seconds since epoch.
+    /// That filter is to be interpreted as the semi-open interval:
+    /// [start_index_timestamp, end_index_timestamp).
+    #[prost(int64, optional, tag = "100")]
+    pub start_index_timestamp: ::core::option::Option<i64>,
+    #[prost(int64, optional, tag = "101")]
+    pub end_index_timestamp: ::core::option::Option<i64>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[derive(Eq, Hash)]
@@ -688,6 +702,11 @@ pub struct SearchStreamRequest {
     /// Fields to extract snippet on.
     #[prost(string, repeated, tag = "10")]
     pub snippet_fields: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The index time filter is interpreted as a semi-open interval. [start, end)
+    #[prost(int64, optional, tag = "100")]
+    pub start_index_timestamp: ::core::option::Option<i64>,
+    #[prost(int64, optional, tag = "101")]
+    pub end_index_timestamp: ::core::option::Option<i64>,
 }
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]

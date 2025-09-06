@@ -981,6 +981,8 @@ async fn test_single_node_split_pruning_by_tags() -> anyhow::Result<()> {
         vec![index_uid.clone()],
         None,
         None,
+        None,
+        None,
         extract_tags_from_query(query_ast),
         &mut test_sandbox.metastore(),
     )
@@ -993,6 +995,8 @@ async fn test_single_node_split_pruning_by_tags() -> anyhow::Result<()> {
         vec![index_uid.clone()],
         None,
         None,
+        None,
+        None,
         extract_tags_from_query(query_ast),
         &mut test_sandbox.metastore(),
     )
@@ -1003,6 +1007,8 @@ async fn test_single_node_split_pruning_by_tags() -> anyhow::Result<()> {
 
     let selected_splits = list_relevant_splits(
         vec![index_uid.clone()],
+        None,
+        None,
         None,
         None,
         extract_tags_from_query(query_ast),

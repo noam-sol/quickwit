@@ -462,6 +462,8 @@ mod tests {
             snippet_fields: Vec::new(),
             start_timestamp: None,
             end_timestamp: None,
+            start_index_timestamp: None,
+            end_index_timestamp: None,
             fast_field: "fast".to_string(),
             output_format: 0,
             partition_by_field: None,

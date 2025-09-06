@@ -209,6 +209,14 @@ pub struct SearchRequestQueryString {
     /// This timestamp is expressed in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_timestamp: Option<i64>,
+    /// If set, restrict search to documents with a `index_timestamp >= start_index_timestamp`.
+    /// This timestamp is expressed in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_index_timestamp: Option<i64>,
+    /// If set, restrict search to documents with a `index_timestamp < end_index_timestamp`.
+    /// This timestamp is expressed in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_index_timestamp: Option<i64>,
     /// Maximum number of hits to return (by default 20).
     #[serde(default = "default_max_hits")]
     pub max_hits: u64,
@@ -283,6 +291,8 @@ pub fn search_request_from_api_request(
         snippet_fields: search_request.snippet_fields.unwrap_or_default(),
         start_timestamp: search_request.start_timestamp,
         end_timestamp: search_request.end_timestamp,
+        start_index_timestamp: search_request.start_index_timestamp,
+        end_index_timestamp: search_request.end_index_timestamp,
         max_hits: search_request.max_hits,
         start_offset: search_request.start_offset,
         aggregation_request: search_request
@@ -520,6 +530,10 @@ struct SearchStreamRequestQueryString {
     pub start_timestamp: Option<i64>,
     /// If set, restricts search to documents with a `timestamp < end_timestamp``.
     pub end_timestamp: Option<i64>,
+    /// If set, restricts search to documents with a `timestamp >= start_index_timestamp`.
+    pub start_index_timestamp: Option<i64>,
+    /// If set, restricts search to documents with a `timestamp < end_index_timestamp`.
+    pub end_index_timestamp: Option<i64>,
     /// The fast field to extract.
     #[serde(deserialize_with = "deserialize_non_empty_string")]
     pub fast_field: String,
@@ -543,6 +557,8 @@ async fn search_stream_endpoint(
         snippet_fields: search_request.snippet_fields.unwrap_or_default(),
         start_timestamp: search_request.start_timestamp,
         end_timestamp: search_request.end_timestamp,
+        start_index_timestamp: search_request.start_index_timestamp,
+        end_index_timestamp: search_request.end_index_timestamp,
         fast_field: search_request.fast_field,
         output_format: search_request.output_format as i32,
         partition_by_field: search_request.partition_by_field,
@@ -1203,6 +1219,8 @@ mod tests {
                 snippet_fields: None,
                 start_timestamp: None,
                 end_timestamp: None,
+                start_index_timestamp: None,
+                end_index_timestamp: None,
                 fast_field: "external_id".to_string(),
                 output_format: OutputFormat::Csv,
                 partition_by_field: None,
@@ -1229,6 +1247,8 @@ mod tests {
                 snippet_fields: None,
                 start_timestamp: None,
                 end_timestamp: None,
+                start_index_timestamp: None,
+                end_index_timestamp: None,
                 fast_field: "external_id".to_string(),
                 output_format: OutputFormat::ClickHouseRowBinary,
                 partition_by_field: None,

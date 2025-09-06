@@ -25,7 +25,7 @@ use quickwit_common::shared_consts;
 use quickwit_common::uri::Uri;
 use quickwit_config::{build_doc_mapper, StorageCredentials};
 use quickwit_doc_mapper::tag_pruning::extract_tags_from_query;
-use quickwit_doc_mapper::DYNAMIC_FIELD_NAME;
+use quickwit_doc_mapper::{DYNAMIC_FIELD_NAME, INDEX_TIMESTAMP_FIELD};
 use quickwit_metastore::{IndexMetadata, ListIndexesMetadataResponseExt, SplitMetadata};
 use quickwit_proto::metastore::{
     ListIndexesMetadataRequest, MetastoreService, MetastoreServiceClient,
@@ -356,6 +356,8 @@ fn simplify_search_request_for_scroll_api(req: &SearchRequest) -> crate::Result<
         query_ast: req.query_ast.clone(),
         start_timestamp: req.start_timestamp,
         end_timestamp: req.end_timestamp,
+        start_index_timestamp: req.start_index_timestamp,
+        end_index_timestamp: req.end_index_timestamp,
         max_hits: req.max_hits,
         start_offset: req.start_offset,
         sort_fields: req.sort_fields.clone(),
@@ -1136,6 +1138,14 @@ async fn refine_and_list_matches(
             &mut search_request.end_timestamp,
         );
     }
+
+    refine_start_end_timestamp_from_ast(
+        &query_ast_resolved,
+        INDEX_TIMESTAMP_FIELD,
+        &mut search_request.start_index_timestamp,
+        &mut search_request.end_index_timestamp,
+    );
+
     let tag_filter_ast = extract_tags_from_query(query_ast_resolved);
 
     // TODO if search after is set, we sort by timestamp and we don't want to count all results,
@@ -1144,6 +1154,8 @@ async fn refine_and_list_matches(
         index_uids,
         search_request.start_timestamp,
         search_request.end_timestamp,
+        search_request.start_index_timestamp,
+        search_request.end_index_timestamp,
         tag_filter_ast,
         metastore,
     )

@@ -154,6 +154,38 @@ pub(super) fn append_query_filters_and_order_by(
         Bound::Unbounded => {}
     };
 
+    match query.index_time_range.start {
+        Bound::Included(v) => {
+            sql.cond_where(any![
+                Expr::col(Splits::IndexTimeRangeEnd).gte(v),
+                Expr::col(Splits::IndexTimeRangeEnd).is_null()
+            ]);
+        }
+        Bound::Excluded(v) => {
+            sql.cond_where(any![
+                Expr::col(Splits::IndexTimeRangeEnd).gt(v),
+                Expr::col(Splits::IndexTimeRangeEnd).is_null()
+            ]);
+        }
+        Bound::Unbounded => {}
+    };
+
+    match query.index_time_range.end {
+        Bound::Included(v) => {
+            sql.cond_where(any![
+                Expr::col(Splits::IndexTimeRangeStart).lte(v),
+                Expr::col(Splits::IndexTimeRangeStart).is_null()
+            ]);
+        }
+        Bound::Excluded(v) => {
+            sql.cond_where(any![
+                Expr::col(Splits::IndexTimeRangeStart).lt(v),
+                Expr::col(Splits::IndexTimeRangeStart).is_null()
+            ]);
+        }
+        Bound::Unbounded => {}
+    };
+
     match &query.mature {
         Bound::Included(evaluation_datetime) => {
             sql.cond_where(any![

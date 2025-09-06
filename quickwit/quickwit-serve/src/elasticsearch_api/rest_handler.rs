@@ -405,6 +405,8 @@ fn build_request_for_es_api(
             sort_fields,
             start_timestamp: None,
             end_timestamp: None,
+            start_index_timestamp: None,
+            end_index_timestamp: None,
             snippet_fields: Vec::new(),
             scroll_ttl_secs,
             search_after,

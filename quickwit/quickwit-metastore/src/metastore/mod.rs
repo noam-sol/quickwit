@@ -644,6 +644,9 @@ pub struct ListSplitsQuery {
     /// The time range to filter by.
     pub time_range: FilterRange<i64>,
 
+    /// The index time range to filter by.
+    pub index_time_range: FilterRange<i64>,
+
     /// The delete opstamp range to filter by.
     pub delete_opstamp: FilterRange<u64>,
 
@@ -710,6 +713,7 @@ impl ListSplitsQuery {
             split_states: Vec::new(),
             tags: None,
             time_range: Default::default(),
+            index_time_range: Default::default(),
             delete_opstamp: Default::default(),
             update_timestamp: Default::default(),
             create_timestamp: Default::default(),
@@ -733,6 +737,7 @@ impl ListSplitsQuery {
             split_states: Vec::new(),
             tags: None,
             time_range: Default::default(),
+            index_time_range: Default::default(),
             delete_opstamp: Default::default(),
             update_timestamp: Default::default(),
             create_timestamp: Default::default(),
@@ -752,6 +757,7 @@ impl ListSplitsQuery {
             split_states: Vec::new(),
             tags: None,
             time_range: Default::default(),
+            index_time_range: Default::default(),
             delete_opstamp: Default::default(),
             update_timestamp: Default::default(),
             create_timestamp: Default::default(),
@@ -822,6 +828,34 @@ impl ListSplitsQuery {
     /// *greater than* the provided value.
     pub fn with_time_range_start_gt(mut self, v: i64) -> Self {
         self.time_range.start = Bound::Excluded(v);
+        self
+    }
+
+    /// Sets the field's lower bound to match values that are
+    /// *less than or equal to* the provided value.
+    pub fn with_index_time_range_end_lte(mut self, v: i64) -> Self {
+        self.index_time_range.end = Bound::Included(v);
+        self
+    }
+
+    /// Sets the field's lower bound to match values that are
+    /// *less than* the provided value.
+    pub fn with_index_time_range_end_lt(mut self, v: i64) -> Self {
+        self.index_time_range.end = Bound::Excluded(v);
+        self
+    }
+
+    /// Sets the field's upper bound to match values that are
+    /// *greater than or equal to* the provided value.
+    pub fn with_index_time_range_start_gte(mut self, v: i64) -> Self {
+        self.index_time_range.start = Bound::Included(v);
+        self
+    }
+
+    /// Sets the field's upper bound to match values that are
+    /// *greater than* the provided value.
+    pub fn with_index_time_range_start_gt(mut self, v: i64) -> Self {
+        self.index_time_range.start = Bound::Excluded(v);
         self
     }
 

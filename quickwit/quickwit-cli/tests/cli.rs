@@ -408,6 +408,8 @@ async fn test_cmd_search_aggregation() {
         snippet_fields: None,
         start_timestamp: None,
         end_timestamp: None,
+        start_index_timestamp: None,
+        end_index_timestamp: None,
         client_args: test_env.default_client_args(),
         sort_by_score: false,
     };
@@ -486,6 +488,8 @@ async fn test_cmd_search_with_snippets() -> Result<()> {
         snippet_fields: Some(vec!["event".to_string()]),
         start_timestamp: None,
         end_timestamp: None,
+        start_index_timestamp: None,
+        end_index_timestamp: None,
         client_args: test_env.default_client_args(),
         sort_by_score: false,
     };
@@ -526,6 +530,8 @@ async fn test_search_index_cli() {
         snippet_fields: None,
         start_timestamp: None,
         end_timestamp: None,
+        start_index_timestamp: None,
+        end_index_timestamp: None,
         sort_by_score: false,
     };
 
@@ -1029,6 +1035,8 @@ async fn test_all_with_s3_localstack_cli() {
         snippet_fields: None,
         start_timestamp: None,
         end_timestamp: None,
+        start_index_timestamp: None,
+        end_index_timestamp: None,
         sort_by_score: false,
     };
 

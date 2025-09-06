@@ -183,6 +183,10 @@ pub fn build_index_command() -> Command {
                         .required(false),
                     arg!(--"end-timestamp" <TIMESTAMP> "Filters out documents after that timestamp (time-series indexes only).")
                         .required(false),
+                    arg!(--"start-index-timestamp" <TIMESTAMP> "Filters out documents before that index timestamp.")
+                        .required(false),
+                    arg!(--"end-index-timestamp" <TIMESTAMP> "Filters out documents after that index timestamp.")
+                        .required(false),
                     arg!(--"sort-by-score" "Sorts documents by their BM25 score.")
                         .required(false),
                 ])
@@ -241,6 +245,8 @@ pub struct SearchIndexArgs {
     pub snippet_fields: Option<Vec<String>>,
     pub start_timestamp: Option<i64>,
     pub end_timestamp: Option<i64>,
+    pub start_index_timestamp: Option<i64>,
+    pub end_index_timestamp: Option<i64>,
     pub sort_by_score: bool,
 }
 
@@ -430,6 +436,14 @@ impl IndexCliCommand {
             .remove_one::<String>("end-timestamp")
             .map(|ts| ts.parse())
             .transpose()?;
+        let start_index_timestamp = matches
+            .remove_one::<String>("start-index-timestamp")
+            .map(|ts| ts.parse())
+            .transpose()?;
+        let end_index_timestamp = matches
+            .remove_one::<String>("end-index-timestamp")
+            .map(|ts| ts.parse())
+            .transpose()?;
         let client_args = ClientArgs::parse(&mut matches)?;
         Ok(Self::Search(SearchIndexArgs {
             index_id,
@@ -441,6 +455,8 @@ impl IndexCliCommand {
             snippet_fields,
             start_timestamp,
             end_timestamp,
+            start_index_timestamp,
+            end_index_timestamp,
             client_args,
             sort_by_score,
         }))
@@ -1136,6 +1152,8 @@ pub async fn search_index(args: SearchIndexArgs) -> anyhow::Result<SearchRespons
         snippet_fields: args.snippet_fields.clone(),
         start_timestamp: args.start_timestamp,
         end_timestamp: args.end_timestamp,
+        start_index_timestamp: args.start_index_timestamp,
+        end_index_timestamp: args.end_index_timestamp,
         max_hits: args.max_hits as u64,
         start_offset: args.start_offset as u64,
         sort_by,

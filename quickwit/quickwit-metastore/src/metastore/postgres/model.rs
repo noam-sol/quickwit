@@ -79,6 +79,8 @@ pub enum Splits {
     SplitState,
     TimeRangeStart,
     TimeRangeEnd,
+    IndexTimeRangeStart,
+    IndexTimeRangeEnd,
     CreateTimestamp,
     UpdateTimestamp,
     PublishTimestamp,
@@ -110,6 +112,10 @@ pub(super) struct PgSplit {
     pub time_range_start: Option<i64>,
     /// If a timestamp field is available, the max timestamp of the split.
     pub time_range_end: Option<i64>,
+    /// If an index timestamp field is available, the min index timestamp of the split.
+    pub index_time_range_start: Option<i64>,
+    /// If an index timestamp field is available, the max index timestamp of the split.
+    pub index_time_range_end: Option<i64>,
     /// Timestamp for tracking when the split was created.
     pub create_timestamp: sqlx::types::time::PrimitiveDateTime,
     /// Timestamp for tracking when the split was last updated.

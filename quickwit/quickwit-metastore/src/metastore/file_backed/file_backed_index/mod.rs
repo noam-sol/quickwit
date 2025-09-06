@@ -740,6 +740,12 @@ fn split_query_predicate(split: &&Split, query: &ListSplitsQuery) -> bool {
         }
     }
 
+    if let Some(range) = &split.split_metadata.index_time_range {
+        if !query.index_time_range.overlaps_with(range.clone()) {
+            return false;
+        }
+    }
+
     if let Some(node_id) = &query.node_id {
         if split.split_metadata.node_id != *node_id {
             return false;

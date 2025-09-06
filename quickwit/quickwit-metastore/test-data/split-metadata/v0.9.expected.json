@@ -11,6 +11,10 @@
     "start": 121000,
     "end": 130198
   },
+  "index_time_range": {
+    "start": 121000,
+    "end": 130198
+  },
   "create_timestamp": 3,
   "maturity": {
     "type": "immature",

@@ -184,7 +184,7 @@ pub async fn list_all_splits(
     index_uids: Vec<IndexUid>,
     metastore: &mut MetastoreServiceClient,
 ) -> crate::Result<Vec<SplitMetadata>> {
-    list_relevant_splits(index_uids, None, None, None, metastore).await
+    list_relevant_splits(index_uids, None, None, None, None, None, metastore).await
 }
 
 /// Extract the list of relevant splits for a given request.
@@ -192,6 +192,8 @@ pub async fn list_relevant_splits(
     index_uids: Vec<IndexUid>,
     start_timestamp: Option<i64>,
     end_timestamp: Option<i64>,
+    start_index_timestamp: Option<i64>,
+    end_index_timestamp: Option<i64>,
     tags_filter_opt: Option<TagFilterAst>,
     metastore: &mut MetastoreServiceClient,
 ) -> crate::Result<Vec<SplitMetadata>> {
@@ -205,6 +207,12 @@ pub async fn list_relevant_splits(
     }
     if let Some(end_ts) = end_timestamp {
         query = query.with_time_range_end_lt(end_ts);
+    }
+    if let Some(start_ts) = start_index_timestamp {
+        query = query.with_index_time_range_start_gte(start_ts);
+    }
+    if let Some(end_ts) = end_index_timestamp {
+        query = query.with_index_time_range_end_lt(end_ts);
     }
     if let Some(tags_filter) = tags_filter_opt {
         query = query.with_tags_filter(tags_filter);

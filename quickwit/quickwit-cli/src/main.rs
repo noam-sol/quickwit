@@ -466,6 +466,10 @@ mod tests {
             "0",
             "--end-timestamp",
             "1",
+            "--start-index-timestamp",
+            "2",
+            "--end-index-timestamp",
+            "3",
             "--search-fields",
             "title",
             "url",
@@ -486,6 +490,8 @@ mod tests {
                 snippet_fields: Some(snippet_field_names),
                 start_timestamp: Some(0),
                 end_timestamp: Some(1),
+                start_index_timestamp: Some(2),
+                end_index_timestamp: Some(3),
                 sort_by_score: false,
             })) if &index_id == "wikipedia"
                   && query == "Barack Obama"
@@ -542,6 +548,10 @@ mod tests {
                 "0",
                 "--end-timestamp",
                 "1",
+                "--start-index-timestamp",
+                "2",
+                "--end-index-timestamp",
+                "3",
                 "--search-fields",
                 "title",
                 "url",
@@ -564,6 +574,8 @@ mod tests {
                 snippet_fields: Some(snippet_field_names),
                 start_timestamp: Some(0),
                 end_timestamp: Some(1),
+                start_index_timestamp: Some(2),
+                end_index_timestamp: Some(3),
                 sort_by_field: Some(sort_by_field),
             })) if &index_id == "wikipedia"
                   && query == "Barack Obama"
