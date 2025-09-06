@@ -520,6 +520,7 @@ mod tests {
                 num_docs,
                 uncompressed_docs_size_in_bytes: num_docs * 15,
                 time_range: timerange_opt,
+                index_time_range: None,
                 replaced_split_ids: Vec::new(),
                 delete_opstamp: 0,
                 num_merge_ops: 0,

@@ -21,6 +21,7 @@ use tantivy::{DateTime, TantivyDocument};
 pub struct ProcessedDoc {
     pub doc: TantivyDocument,
     pub timestamp_opt: Option<DateTime>,
+    pub index_timestamp: DateTime,
     pub partition: u64,
     pub num_bytes: usize,
 }
@@ -29,6 +30,7 @@ impl fmt::Debug for ProcessedDoc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ProcessedDoc")
             .field("timestamp_opt", &self.timestamp_opt)
+            .field("index_timestamp", &self.index_timestamp)
             .field("partition", &self.partition)
             .field("num_bytes", &self.num_bytes)
             .finish()

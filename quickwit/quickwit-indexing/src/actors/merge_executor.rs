@@ -27,7 +27,7 @@ use quickwit_common::io::IoControls;
 use quickwit_common::runtimes::RuntimeType;
 use quickwit_common::temp_dir::TempDirectory;
 use quickwit_directories::UnionDirectory;
-use quickwit_doc_mapper::DocMapper;
+use quickwit_doc_mapper::{DocMapper, INDEX_TIMESTAMP_FIELD};
 use quickwit_metastore::SplitMetadata;
 use quickwit_proto::indexing::MergePipelineId;
 use quickwit_proto::metastore::{
@@ -195,6 +195,19 @@ fn merge_time_range(splits: &[SplitMetadata]) -> Option<RangeInclusive<DateTime>
         })
 }
 
+fn merge_index_time_range(splits: &[SplitMetadata]) -> Option<RangeInclusive<DateTime>> {
+    splits
+        .iter()
+        .flat_map(|split| split.index_time_range.clone())
+        .flat_map(|time_range| vec![*time_range.start(), *time_range.end()].into_iter())
+        .minmax()
+        .into_option()
+        .map(|(min_timestamp, max_timestamp)| {
+            DateTime::from_timestamp_secs(min_timestamp)
+                ..=DateTime::from_timestamp_secs(max_timestamp)
+        })
+}
+
 fn sum_doc_sizes_in_bytes(splits: &[SplitMetadata]) -> u64 {
     splits
         .iter()
@@ -239,6 +252,7 @@ pub fn merge_split_attrs(
 ) -> anyhow::Result<SplitAttrs> {
     let partition_id = combine_partition_ids_aux(splits.iter().map(|split| split.partition_id));
     let time_range: Option<RangeInclusive<DateTime>> = merge_time_range(splits);
+    let index_time_range: Option<RangeInclusive<DateTime>> = merge_index_time_range(splits);
     let uncompressed_docs_size_in_bytes = sum_doc_sizes_in_bytes(splits);
     let num_docs = sum_num_docs(splits);
     let replaced_split_ids: Vec<SplitId> = splits
@@ -269,6 +283,7 @@ pub fn merge_split_attrs(
         partition_id,
         replaced_split_ids,
         time_range,
+        index_time_range,
         num_docs,
         uncompressed_docs_size_in_bytes,
         delete_opstamp,
@@ -442,6 +457,14 @@ impl MergeExecutor {
         } else {
             None
         };
+        let index_time_range = if let Ok(reader) = merged_segment_reader
+            .fast_fields()
+            .date(INDEX_TIMESTAMP_FIELD)
+        {
+            Some(reader.min_value()..=reader.max_value())
+        } else {
+            None
+        };
         let indexed_split = IndexedSplit {
             split_attrs: SplitAttrs {
                 node_id: NodeId::new(split.node_id),
@@ -452,6 +475,7 @@ impl MergeExecutor {
                 partition_id: split.partition_id,
                 replaced_split_ids: vec![split.split_id.clone()],
                 time_range,
+                index_time_range,
                 num_docs,
                 uncompressed_docs_size_in_bytes,
                 delete_opstamp: last_delete_opstamp,

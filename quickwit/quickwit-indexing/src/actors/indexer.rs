@@ -307,6 +307,7 @@ impl IndexerState {
             let ProcessedDoc {
                 doc,
                 timestamp_opt,
+                index_timestamp,
                 partition,
                 num_bytes,
             } = doc;
@@ -330,6 +331,10 @@ impl IndexerState {
             if let Some(timestamp) = timestamp_opt {
                 record_timestamp(timestamp, &mut indexed_split.split_attrs.time_range);
             }
+            record_timestamp(
+                index_timestamp,
+                &mut indexed_split.split_attrs.index_time_range,
+            );
             let _protect_guard = ctx.protect_zone();
             indexed_split
                 .index_writer
@@ -809,6 +814,7 @@ mod tests {
                             timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                         ),
                         timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 1,
                         num_bytes: 30,
                     },
@@ -818,6 +824,7 @@ mod tests {
                             timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                         ),
                         timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 1,
                         num_bytes: 30,
                     },
@@ -835,6 +842,7 @@ mod tests {
                             timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435i64)
                         ),
                         timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435i64)),
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436i64),
                         partition: 1,
                         num_bytes: 30,
                     },
@@ -844,6 +852,7 @@ mod tests {
                             timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                         ),
                         timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 1,
                         num_bytes: 30,
                     },
@@ -860,6 +869,7 @@ mod tests {
                         timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                     ),
                     timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                    index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                     partition: 1,
                     num_bytes: 30,
                 }],
@@ -945,6 +955,7 @@ mod tests {
             ProcessedDoc {
                 doc: doc!(body_field=>body),
                 timestamp_opt: None,
+                index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                 partition: 0,
                 num_bytes,
             }
@@ -1023,6 +1034,7 @@ mod tests {
                                 timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                             ),
                             timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                            index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                             partition: 1,
                             num_bytes: 30,
                         }],
@@ -1101,6 +1113,7 @@ mod tests {
                         timestamp_field=>DateTime::from_timestamp_secs(1_662_529_435)
                     ),
                     timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                    index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                     partition: 1,
                     num_bytes: 30,
                 }],
@@ -1188,6 +1201,7 @@ mod tests {
                         timestamp_field=> DateTime::from_timestamp_secs(1_662_529_435)
                     ),
                     timestamp_opt: Some(DateTime::from_timestamp_secs(1_662_529_435)),
+                    index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                     partition: 1,
                     num_bytes: 30,
                 }],
@@ -1272,6 +1286,7 @@ mod tests {
                             tenant_field=>"tenant_1",
                         ),
                         timestamp_opt: None,
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 1,
                         num_bytes: 30,
                     },
@@ -1281,6 +1296,7 @@ mod tests {
                             tenant_field=>"tenant_2",
                         ),
                         timestamp_opt: None,
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 3,
                         num_bytes: 30,
                     },
@@ -1366,6 +1382,7 @@ mod tests {
                     vec![ProcessedDoc {
                         doc: doc!(body_field=>"doc {i}"),
                         timestamp_opt: None,
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition,
                         num_bytes: 30,
                     }],
@@ -1444,6 +1461,7 @@ mod tests {
                     vec![ProcessedDoc {
                         doc: doc!(body_field=>"doc 1"),
                         timestamp_opt: None,
+                        index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                         partition: 0,
                         num_bytes: 30,
                     }],
@@ -1515,6 +1533,7 @@ mod tests {
                 vec![ProcessedDoc {
                     doc: doc!(body_field=>"doc 1"),
                     timestamp_opt: None,
+                    index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                     partition: 0,
                     num_bytes: 30,
                 }],
@@ -1571,6 +1590,7 @@ mod tests {
                 vec![ProcessedDoc {
                     doc: doc!(body_field=>"doc 1"),
                     timestamp_opt: None,
+                    index_timestamp: DateTime::from_timestamp_secs(1_662_529_436),
                     partition: 0,
                     num_bytes: 30,
                 }],

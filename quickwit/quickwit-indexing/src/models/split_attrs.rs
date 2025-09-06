@@ -59,6 +59,7 @@ pub struct SplitAttrs {
     pub uncompressed_docs_size_in_bytes: u64,
 
     pub time_range: Option<RangeInclusive<DateTime>>,
+    pub index_time_range: Option<RangeInclusive<DateTime>>,
 
     pub replaced_split_ids: Vec<String>,
 
@@ -76,6 +77,7 @@ impl fmt::Debug for SplitAttrs {
             .field("partition_id", &self.partition_id)
             .field("replaced_split_ids", &self.replaced_split_ids)
             .field("time_range", &self.time_range)
+            .field("index_time_range", &self.index_time_range)
             .field(
                 "uncompressed_docs_size_in_bytes",
                 &self.uncompressed_docs_size_in_bytes,
@@ -100,6 +102,11 @@ pub fn create_split_metadata(
         .as_ref()
         .map(|range| range.start().into_timestamp_secs()..=range.end().into_timestamp_secs());
 
+    let index_time_range = split_attrs
+        .index_time_range
+        .as_ref()
+        .map(|range| range.start().into_timestamp_secs()..=range.end().into_timestamp_secs());
+
     let mut maturity =
         merge_policy.split_maturity(split_attrs.num_docs as usize, split_attrs.num_merge_ops);
     if let Some(max_maturity) = max_maturity_before_end_of_retention(
@@ -118,6 +125,7 @@ pub fn create_split_metadata(
         partition_id: split_attrs.partition_id,
         num_docs: split_attrs.num_docs as usize,
         time_range,
+        index_time_range,
         uncompressed_docs_size_in_bytes: split_attrs.uncompressed_docs_size_in_bytes,
         create_timestamp,
         maturity,

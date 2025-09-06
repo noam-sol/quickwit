@@ -563,6 +563,10 @@ mod tests {
                             DateTime::from_timestamp_secs(1_628_203_589)
                                 ..=DateTime::from_timestamp_secs(1_628_203_640),
                         ),
+                        index_time_range: Some(
+                            DateTime::from_timestamp_secs(1_628_203_590)
+                                ..=DateTime::from_timestamp_secs(1_628_203_641),
+                        ),
                         uncompressed_docs_size_in_bytes: 1_000,
                         num_docs: 10,
                         replaced_split_ids: Vec::new(),
@@ -677,6 +681,10 @@ mod tests {
                     DateTime::from_timestamp_secs(1_628_203_589)
                         ..=DateTime::from_timestamp_secs(1_628_203_640),
                 ),
+                index_time_range: Some(
+                    DateTime::from_timestamp_secs(1_628_203_590)
+                        ..=DateTime::from_timestamp_secs(1_628_203_641),
+                ),
                 replaced_split_ids: vec![
                     "replaced-split-1".to_string(),
                     "replaced-split-2".to_string(),
@@ -703,6 +711,10 @@ mod tests {
                 time_range: Some(
                     DateTime::from_timestamp_secs(1_628_203_589)
                         ..=DateTime::from_timestamp_secs(1_628_203_640),
+                ),
+                index_time_range: Some(
+                    DateTime::from_timestamp_secs(1_628_203_590)
+                        ..=DateTime::from_timestamp_secs(1_628_203_641),
                 ),
                 replaced_split_ids: vec![
                     "replaced-split-1".to_string(),
@@ -825,6 +837,7 @@ mod tests {
                         split_id: "test-split".to_string(),
                         partition_id: 3u64,
                         time_range: None,
+                        index_time_range: None,
                         uncompressed_docs_size_in_bytes: 1_000,
                         num_docs: 10,
                         replaced_split_ids: Vec::new(),
@@ -1005,6 +1018,10 @@ mod tests {
                         time_range: Some(
                             DateTime::from_timestamp_secs(1_628_203_589)
                                 ..=DateTime::from_timestamp_secs(1_628_203_640),
+                        ),
+                        index_time_range: Some(
+                            DateTime::from_timestamp_secs(1_628_203_590)
+                                ..=DateTime::from_timestamp_secs(1_628_203_641),
                         ),
                         uncompressed_docs_size_in_bytes: 1_000,
                         num_docs: 10,

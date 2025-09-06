@@ -559,9 +559,11 @@ impl DocProcessor {
             .doc_mapper
             .doc_from_json_obj(json_doc.json_obj, json_doc.num_bytes as u64)?;
         let timestamp_opt = self.extract_timestamp(&doc)?;
+        let index_timestamp = DateTime::from_timestamp_secs(index_datetime.unix_timestamp());
         Ok(ProcessedDoc {
             doc,
             timestamp_opt,
+            index_timestamp,
             partition,
             num_bytes,
         })
