@@ -196,6 +196,9 @@ fn one_or_many_from_vrl_doc(vrl_doc: VrlDoc) -> OneOrMany<Result<JsonDoc, DocPro
             OneOrMany::One(Ok(JsonDoc::new(json_obj, vrl_doc.num_bytes)))
         }
         Ok(JsonValue::Array(json_arr)) => {
+            if json_arr.is_empty() {
+                return OneOrMany::Many(Vec::new());
+            }
             let num_bytes = vrl_doc.num_bytes / json_arr.len();
             let results = json_arr
                 .into_iter()
