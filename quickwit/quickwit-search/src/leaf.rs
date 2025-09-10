@@ -2108,7 +2108,7 @@ mod tests {
         index_writer.commit().unwrap();
 
         let mut hotcache_bytes_writer = Vec::new().writer();
-        write_hotcache(ram_directory.clone(), &mut hotcache_bytes_writer).unwrap();
+        write_hotcache(ram_directory.clone(), &mut hotcache_bytes_writer, || {}).unwrap();
         let hotcache_bytes = OwnedBytes::new(hotcache_bytes_writer.into_inner());
         let hot_directory = HotDirectory::open(ram_directory.clone(), hotcache_bytes).unwrap();
         (hot_directory, ram_directory.total_mem_usage())

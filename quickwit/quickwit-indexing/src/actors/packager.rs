@@ -207,9 +207,15 @@ fn list_split_files(
     Ok(index_files)
 }
 
-fn build_hotcache<W: io::Write>(split_path: &Path, out: &mut W) -> anyhow::Result<()> {
+fn build_hotcache<W: io::Write>(
+    ctx: &ActorContext<Packager>,
+    split_path: &Path,
+    out: &mut W,
+) -> anyhow::Result<()> {
     let mmap_directory = tantivy::directory::MmapDirectory::open(split_path)?;
-    write_hotcache(mmap_directory, out)?;
+    write_hotcache(mmap_directory, out, || {
+        ctx.record_progress();
+    })?;
     Ok(())
 }
 
@@ -311,7 +317,11 @@ fn create_packaged_split(
 
     debug!(split_id = split.split_id(), "build-hotcache");
     let mut hotcache_bytes = Vec::new();
-    build_hotcache(split.split_scratch_directory.path(), &mut hotcache_bytes)?;
+    build_hotcache(
+        ctx,
+        split.split_scratch_directory.path(),
+        &mut hotcache_bytes,
+    )?;
     ctx.record_progress();
 
     let serialized_split_fields = serialize_field_metadata(&fields_metadata);

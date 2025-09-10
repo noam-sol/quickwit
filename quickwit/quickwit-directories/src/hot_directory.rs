@@ -473,10 +473,15 @@ fn list_index_files(index: &Index) -> tantivy::Result<HashSet<PathBuf>> {
 /// and writes a static cache file called hotcache in the `output`.
 ///
 /// See [`HotDirectory`] for more information.
-pub fn write_hotcache<D: Directory>(
+pub fn write_hotcache<D, F>(
     directory: D,
     output: &mut dyn io::Write,
-) -> tantivy::Result<()> {
+    mut record_progress: F,
+) -> tantivy::Result<()>
+where
+    D: Directory,
+    F: FnMut(),
+{
     // We use the caching directory here in order to defensively ensure that
     // the content of the directory that will be written in the hotcache is precisely
     // the same that was read on the first pass.
@@ -508,6 +513,8 @@ pub fn write_hotcache<D: Directory>(
     }
     let index_files = list_index_files(&index)?;
     for file_path in index_files {
+        record_progress();
+
         let file_slice_res = debug_proxy_directory.open_read(&file_path);
         if let Err(tantivy::directory::error::OpenReadError::FileDoesNotExist(_)) = file_slice_res {
             continue;
