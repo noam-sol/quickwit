@@ -7,6 +7,13 @@ on:
   pull_request:
     branches:
       - vega-main
+  workflow_dispatch:
+    inputs:
+      image_suffix:
+        default: "pr"
+        description: "Image suffix for the built image in the format of vega_edge-<image_suffix>"
+        required: true
+        type: string
 env:
   REGISTRY_IMAGE: quickwit
 
@@ -89,7 +96,9 @@ jobs:
             QW_COMMIT_TAGS=${{ env.QW_COMMIT_TAGS }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: |
-            ${{ steps.meta.outputs.tags }}-${{ matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64' }}
+            ${{ github.event_name == 'push' && format('{0}-{1}', steps.meta.outputs.tags, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
+            ${{ github.event_name == 'push' && format('{0}/quickwit:vega_edge-{1}', steps.login-ecr-prod.outputs.registry, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
+            ${{ github.event_name == 'workflow_dispatch' && format('{0}/quickwit:vega_edge-{1}-{2}', steps.login-ecr-prod.outputs.registry, inputs.image_suffix, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
           cache-from: type=registry,ref=${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:cache-${{ matrix.platform }}
           cache-to: type=registry,ref=${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:cache-${{ matrix.platform }},mode=max,image-manifest=true,oci-mediatypes=true,compression=estargz,compression-level=9
 
@@ -123,10 +132,23 @@ jobs:
 
       # Build and push image manifest (don't push on PR)
       # https://github.com/Noelware/docker-manifest-action
-      - name: Build and push Docker manifest
-        id: build-and-push
+      - name: Build and push manifests for push event
+        if: github.event_name == 'push'
         uses: Noelware/docker-manifest-action@v1
         with:
-          inputs: ${{ steps.meta.outputs.tags }}-amd64,${{ steps.meta.outputs.tags }}-arm64
-          tags: ${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:main-${{ github.sha }}
-          push: ${{ github.event_name != 'pull_request' }}
+          inputs: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-amd64,${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-arm64
+          tags: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:main-${{ github.sha }}
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge
+          push: true
+
+      - name: Build and push vega_edge manifest for workflow dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: Noelware/docker-manifest-action@v1
+        with:
+          inputs: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-${{ inputs.image_suffix }}-amd64,${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-${{ inputs.image_suffix }}-arm64
+          tags: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-${{ inputs.image_suffix }}
+          push: true
