@@ -70,6 +70,7 @@
       "partition_key": "tenant_id",
       "max_num_partitions": 100,
       "index_field_presence": true,
+      "index_field_presence_json": true,
       "store_document_size": false,
       "store_source": true,
       "tokenizers": [

@@ -41,7 +41,7 @@ use doc_mapper::{
 };
 pub use doc_mapping::{DocMapping, Mode, ModeType};
 pub use error::{DocParsingError, QueryParserError};
-use quickwit_common::shared_consts::FIELD_PRESENCE_FIELD_NAME;
+use quickwit_common::shared_consts::{FIELD_PRESENCE_FIELD_NAME, FIELD_PRESENCE_JSON_FIELD_NAME};
 use quickwit_proto::types::DocMappingUid;
 pub use routing_expression::RoutingExpr;
 
@@ -62,6 +62,7 @@ const QW_RESERVED_FIELD_NAMES: &[&str] = &[
     DOCUMENT_SIZE_FIELD_NAME,
     DYNAMIC_FIELD_NAME,
     FIELD_PRESENCE_FIELD_NAME,
+    FIELD_PRESENCE_JSON_FIELD_NAME,
     SOURCE_FIELD_NAME,
 ];
 

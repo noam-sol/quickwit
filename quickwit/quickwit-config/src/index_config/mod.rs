@@ -607,6 +607,7 @@ impl crate::TestableForRegression for IndexConfig {
             partition_key: Some("tenant_id".to_string()),
             max_num_partitions: NonZeroU32::new(100).unwrap(),
             index_field_presence: true,
+            index_field_presence_json: true,
             store_document_size: false,
             store_source: true,
             tokenizers: vec![tokenizer],

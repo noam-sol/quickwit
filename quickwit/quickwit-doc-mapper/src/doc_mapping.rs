@@ -147,6 +147,11 @@ pub struct DocMapping {
     #[serde(default)]
     pub index_field_presence: bool,
 
+    /// Whether to record the presence of all fields which are json objects (including
+    /// fast-fields). Optimizes `exists` queries.
+    #[serde(default)]
+    pub index_field_presence_json: bool,
+
     /// Whether to record and store the size (bytes) of each ingested document in a fast field.
     #[serde(alias = "document_length")]
     #[serde(default)]
@@ -217,6 +222,7 @@ mod tests {
             partition_key: Some("tenant_id".to_string()),
             max_num_partitions: NonZeroU32::new(100).unwrap(),
             index_field_presence: true,
+            index_field_presence_json: true,
             store_document_size: true,
             store_source: true,
             tokenizers: vec![TokenizerEntry {
@@ -250,6 +256,7 @@ mod tests {
             NonZeroU32::new(200).unwrap()
         );
         assert_eq!(doc_mapping.index_field_presence, false);
+        assert_eq!(doc_mapping.index_field_presence_json, false);
         assert_eq!(doc_mapping.store_document_size, false);
         assert_eq!(doc_mapping.store_source, false);
     }

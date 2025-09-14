@@ -62,6 +62,7 @@
         }
       ],
       "index_field_presence": true,
+      "index_field_presence_json": false,
       "max_num_partitions": 100,
       "mode": "dynamic",
       "partition_key": "tenant_id",

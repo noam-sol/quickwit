@@ -42,7 +42,7 @@ use crate::routing_expression::RoutingExpr;
 use crate::{
     Cardinality, DocMapping, DocParsingError, Mode, ModeType, NamedField, QueryParserError,
     TokenizerEntry, WarmupInfo, DOCUMENT_SIZE_FIELD_NAME, DYNAMIC_FIELD_NAME,
-    FIELD_PRESENCE_FIELD_NAME, SOURCE_FIELD_NAME,
+    FIELD_PRESENCE_FIELD_NAME, FIELD_PRESENCE_JSON_FIELD_NAME, SOURCE_FIELD_NAME,
 };
 
 const FIELD_PRESENCE_FIELD: Field = Field::from_field_id(0u32);
@@ -63,6 +63,9 @@ pub struct DocMapper {
     /// Indexes field presence. It is necessary to enable this in order to run exists
     /// queries.
     index_field_presence: bool,
+    // Field in which the presence of json objects is stored
+    // with some caveats (only fast-fields, and no leafs). Optimizes `exists` queries.
+    field_presence_json_field: Option<Field>,
     /// Field in which the dynamically mapped fields should be stored.
     /// This field is only valid when using the schema associated with the default
     /// doc mapper, and therefore cannot be used in the `query` method.
@@ -142,6 +145,7 @@ impl From<DocMapper> for DocMapperBuilder {
             partition_key: partition_key_opt,
             max_num_partitions: default_doc_mapper.max_num_partitions,
             index_field_presence: default_doc_mapper.index_field_presence,
+            index_field_presence_json: default_doc_mapper.field_presence_json_field.is_some(),
             store_document_size: default_doc_mapper.document_size_field.is_some(),
             store_source: default_doc_mapper.source_field.is_some(),
             tokenizers: default_doc_mapper.tokenizer_entries,
@@ -166,6 +170,12 @@ impl TryFrom<DocMapperBuilder> for DocMapper {
         assert_eq!(field_presence_field, FIELD_PRESENCE_FIELD);
 
         let doc_mapping = builder.doc_mapping;
+
+        let field_presence_json_field = if doc_mapping.index_field_presence_json {
+            Some(schema_builder.add_u64_field(FIELD_PRESENCE_JSON_FIELD_NAME, INDEXED))
+        } else {
+            None
+        };
 
         let dynamic_field = if let Mode::Dynamic(json_options) = &doc_mapping.mode {
             Some(schema_builder.add_json_field(DYNAMIC_FIELD_NAME, json_options.clone()))
@@ -282,6 +292,7 @@ impl TryFrom<DocMapperBuilder> for DocMapper {
             doc_mapping_uid: doc_mapping.doc_mapping_uid,
             schema,
             index_field_presence: doc_mapping.index_field_presence,
+            field_presence_json_field,
             source_field,
             dynamic_field,
             document_size_field,

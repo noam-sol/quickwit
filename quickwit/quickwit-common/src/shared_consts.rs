@@ -20,6 +20,7 @@ use tracing::warn;
 
 /// Field name reserved for storing the dynamically indexed fields.
 pub const FIELD_PRESENCE_FIELD_NAME: &str = "_field_presence";
+pub const FIELD_PRESENCE_JSON_FIELD_NAME: &str = "_field_presence_json";
 
 pub const MINIMUM_DELETION_GRACE_PERIOD: Duration = Duration::from_secs(5 * 60); // 5mn
 const MAXIMUM_DELETION_GRACE_PERIOD: Duration = Duration::from_secs(2 * 24 * 3600); // 2 days

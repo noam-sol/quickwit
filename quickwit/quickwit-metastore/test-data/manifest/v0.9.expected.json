@@ -58,6 +58,7 @@
         "tag_fields": [],
         "max_num_partitions": 200,
         "index_field_presence": false,
+        "index_field_presence_json": false,
         "store_document_size": false,
         "store_source": false,
         "tokenizers": []
