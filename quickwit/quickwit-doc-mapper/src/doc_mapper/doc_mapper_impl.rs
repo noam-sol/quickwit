@@ -16,7 +16,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::num::NonZeroU32;
 
 use anyhow::{bail, Context};
-use fnv::FnvHashSet;
 use quickwit_proto::types::DocMappingUid;
 use quickwit_query::create_default_quickwit_tokenizer_manager;
 use quickwit_query::query_ast::QueryAst;
@@ -562,9 +561,8 @@ impl DocMapper {
         }
 
         if self.index_field_presence {
-            let field_presence_hashes: FnvHashSet<u64> =
-                populate_field_presence(&document, &self.schema, true);
-            for field_presence_hash in field_presence_hashes {
+            let field_presence = populate_field_presence(&document, &self.schema, true);
+            for field_presence_hash in field_presence.hashes {
                 document.add_field_value(FIELD_PRESENCE_FIELD, &field_presence_hash);
             }
         }

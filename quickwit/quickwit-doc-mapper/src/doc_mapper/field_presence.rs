@@ -18,6 +18,13 @@ use tantivy::schema::document::{ReferenceValue, ReferenceValueLeaf};
 use tantivy::schema::{FieldType, Schema, Value};
 use tantivy::Document;
 
+pub struct PresenceFields {
+    // data which goes into _field_presence
+    pub hashes: FnvHashSet<u64>,
+    // data which goes into _field_presence_json
+    pub json_hashes: FnvHashSet<u64>,
+}
+
 /// Populates the field presence for a document.
 ///
 /// The field presence is a set of hashes that represent the fields that are present in the
@@ -28,9 +35,11 @@ pub(crate) fn populate_field_presence<D: Document>(
     document: &D,
     schema: &Schema,
     populate_object_fields: bool,
-) -> FnvHashSet<u64> {
-    let mut field_presence_hashes: FnvHashSet<u64> =
-        FnvHashSet::with_capacity_and_hasher(schema.num_fields(), Default::default());
+) -> PresenceFields {
+    let mut presence_fields: PresenceFields = PresenceFields {
+        hashes: FnvHashSet::with_capacity_and_hasher(schema.num_fields(), Default::default()),
+        json_hashes: FnvHashSet::with_hasher(Default::default()),
+    };
     for (field, value) in document.iter_fields_and_values() {
         let field_entry = schema.get_field_entry(field);
         if !field_entry.is_indexed() || field_entry.is_fast() {
@@ -49,25 +58,24 @@ pub(crate) fn populate_field_presence<D: Document>(
             let mut subfields_populator = SubfieldsPopulator {
                 populate_object_fields,
                 is_expand_dots_enabled,
-                field_presence_hashes,
+                presence_fields: &mut presence_fields,
             };
             subfields_populator.populate_field_presence_for_json_obj(path_hasher, json_obj);
-            field_presence_hashes = subfields_populator.field_presence_hashes;
         } else {
-            field_presence_hashes.insert(path_hasher.finish_leaf());
+            presence_fields.hashes.insert(path_hasher.finish_leaf());
         }
     }
-    field_presence_hashes
+    presence_fields
 }
 
 /// A struct to help populate field presence hashes for nested JSON field.
-struct SubfieldsPopulator {
+struct SubfieldsPopulator<'a> {
     populate_object_fields: bool,
     is_expand_dots_enabled: bool,
-    field_presence_hashes: FnvHashSet<u64>,
+    presence_fields: &'a mut PresenceFields,
 }
 
-impl SubfieldsPopulator {
+impl SubfieldsPopulator<'_> {
     #[inline]
     fn populate_field_presence_for_json_value<'a>(
         &mut self,
@@ -77,7 +85,7 @@ impl SubfieldsPopulator {
         match json_value.as_value() {
             ReferenceValue::Leaf(ReferenceValueLeaf::Null) => {}
             ReferenceValue::Leaf(_) => {
-                self.field_presence_hashes.insert(path_hasher.finish_leaf());
+                self.presence_fields.hashes.insert(path_hasher.finish_leaf());
             }
             ReferenceValue::Array(items) => {
                 for item in items {
@@ -99,7 +107,7 @@ impl SubfieldsPopulator {
         V: Value<'a>,
     {
         if self.populate_object_fields {
-            self.field_presence_hashes
+            self.presence_fields.hashes
                 .insert(path_hasher.finish_intermediate());
         }
         for (field_key, field_value) in json_obj {
@@ -109,7 +117,7 @@ impl SubfieldsPopulator {
                 while let Some(segment) = expanded_key.next() {
                     child_path_hasher.append(segment.as_bytes());
                     if self.populate_object_fields && expanded_key.peek().is_some() {
-                        self.field_presence_hashes
+                        self.presence_fields.hashes
                             .insert(child_path_hasher.finish_intermediate());
                     }
                 }
@@ -138,7 +146,7 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 1);
+        assert_eq!(field_presence.hashes.len(), 1);
     }
 
     #[test]
@@ -150,7 +158,7 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 1);
+        assert_eq!(field_presence.hashes.len(), 1);
     }
 
     #[test]
@@ -162,9 +170,9 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, false);
-        assert_eq!(field_presence.len(), 1);
+        assert_eq!(field_presence.hashes.len(), 1);
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 2);
+        assert_eq!(field_presence.hashes.len(), 2);
     }
 
     #[test]
@@ -176,9 +184,9 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, false);
-        assert_eq!(field_presence.len(), 1);
+        assert_eq!(field_presence.hashes.len(), 1);
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 3);
+        assert_eq!(field_presence.hashes.len(), 3);
     }
 
     #[test]
@@ -190,9 +198,9 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, false);
-        assert_eq!(field_presence.len(), 2);
+        assert_eq!(field_presence.hashes.len(), 2);
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 4);
+        assert_eq!(field_presence.hashes.len(), 4);
     }
 
     #[test]
@@ -207,8 +215,8 @@ mod tests {
         let document = TantivyDocument::parse_json(&schema, json_doc).unwrap();
 
         let field_presence = populate_field_presence(&document, &schema, false);
-        assert_eq!(field_presence.len(), 1);
+        assert_eq!(field_presence.hashes.len(), 1);
         let field_presence = populate_field_presence(&document, &schema, true);
-        assert_eq!(field_presence.len(), 4);
+        assert_eq!(field_presence.hashes.len(), 4);
     }
 }
