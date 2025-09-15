@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use quickwit_common::shared_consts::FIELD_PRESENCE_FIELD_NAME;
+use quickwit_common::shared_consts::{FIELD_PRESENCE_FIELD_NAME, FIELD_PRESENCE_JSON_FIELD_NAME};
 use quickwit_common::PathHasher;
 use serde::{Deserialize, Serialize};
 use tantivy::schema::{Field, FieldEntry, IndexRecordOption, Schema as TantivySchema};
@@ -68,6 +68,7 @@ fn compute_field_presence_hash(field: Field, field_path: &str) -> PathHasher {
 
 fn build_existence_query(
     field_presence_field: Field,
+    field_presence_json_field: Option<Field>,
     field: Field,
     field_entry: &FieldEntry,
     path: &str,
@@ -78,6 +79,15 @@ fn build_existence_query(
         } else {
             format!("{}.{}", field_entry.name(), path)
         };
+        if field_entry.field_type().is_json() && field_presence_json_field.is_some() {
+            let value_hash = compute_field_presence_hash(field, path).finish_intermediate();
+            let exists_query = tantivy::query::JsonExistsQuery::new(
+                full_path,
+                value_hash,
+                field_presence_json_field.unwrap(),
+            );
+            return TantivyQueryAst::from(exists_query);
+        }
         let exists_query = tantivy::query::ExistsQuery::new(full_path, true);
         TantivyQueryAst::from(exists_query)
     } else {
@@ -129,6 +139,7 @@ impl BuildTantivyAst for FieldPresenceQuery {
         let field_presence_field = schema.get_field(FIELD_PRESENCE_FIELD_NAME).map_err(|_| {
             InvalidQuery::SchemaError("field presence is not available for this split".to_string())
         })?;
+        let json_presence_field = schema.get_field(FIELD_PRESENCE_JSON_FIELD_NAME).ok();
         let fields = self.find_field_and_subfields(schema);
         if fields.is_empty() {
             // the schema is not dynamic and no subfields are defined
@@ -139,7 +150,13 @@ impl BuildTantivyAst for FieldPresenceQuery {
         let queries = fields
             .into_iter()
             .map(|(field, entry, path)| {
-                build_existence_query(field_presence_field, field, entry, path)
+                build_existence_query(
+                    field_presence_field,
+                    json_presence_field,
+                    field,
+                    entry,
+                    path,
+                )
             })
             .collect();
         Ok(TantivyQueryAst::Bool(TantivyBoolQuery::build_clause(
