@@ -560,12 +560,20 @@ impl DocMapper {
             document.add_u64(document_size_field, document_len);
         }
 
-        if self.index_field_presence {
+        if self.index_field_presence || self.field_presence_json_field.is_some() {
             let field_presence = populate_field_presence(&document, &self.schema, true);
-            for field_presence_hash in field_presence.hashes {
-                document.add_field_value(FIELD_PRESENCE_FIELD, &field_presence_hash);
+            if self.index_field_presence {
+                for field_hash in field_presence.hashes {
+                    document.add_field_value(FIELD_PRESENCE_FIELD, &field_hash);
+                }
+            }
+            if let Some(field_presence_json_field) = self.field_presence_json_field {
+                for field_hash in field_presence.json_hashes {
+                    document.add_field_value(field_presence_json_field, &field_hash);
+                }
             }
         }
+
         Ok((partition, document))
     }
 

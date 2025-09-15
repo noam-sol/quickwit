@@ -15,7 +15,7 @@
 use fnv::FnvHashSet;
 use quickwit_common::PathHasher;
 use tantivy::schema::document::{ReferenceValue, ReferenceValueLeaf};
-use tantivy::schema::{FieldType, Schema, Value};
+use tantivy::schema::{FieldEntry, FieldType, Schema, Value};
 use tantivy::Document;
 
 pub struct PresenceFields {
@@ -42,10 +42,11 @@ pub(crate) fn populate_field_presence<D: Document>(
     };
     for (field, value) in document.iter_fields_and_values() {
         let field_entry = schema.get_field_entry(field);
-        if !field_entry.is_indexed() || field_entry.is_fast() {
-            // We are using an tantivy's ExistsQuery for fast fields.
+        if !should_populate(field_entry) {
+            // Use tantivy's ExistsQuery
             continue;
         }
+
         let mut path_hasher: PathHasher = PathHasher::default();
         path_hasher.append(&field.field_id().to_le_bytes()[..]);
         if let Some(json_obj) = value.as_object() {
@@ -58,6 +59,7 @@ pub(crate) fn populate_field_presence<D: Document>(
             let mut subfields_populator = SubfieldsPopulator {
                 populate_object_fields,
                 is_expand_dots_enabled,
+                is_fast_field: field_entry.is_fast(),
                 presence_fields: &mut presence_fields,
             };
             subfields_populator.populate_field_presence_for_json_obj(path_hasher, json_obj);
@@ -68,10 +70,23 @@ pub(crate) fn populate_field_presence<D: Document>(
     presence_fields
 }
 
+fn should_populate(field_entry: &FieldEntry) -> bool {
+    if !field_entry.is_indexed() {
+        return false;
+    }
+    // exclude most fast fields, except json objects (to populate _field_presence_json).
+    if field_entry.field_type().is_json() {
+        return true;
+    }
+    !field_entry.is_fast()
+}
+
 /// A struct to help populate field presence hashes for nested JSON field.
 struct SubfieldsPopulator<'a> {
     populate_object_fields: bool,
     is_expand_dots_enabled: bool,
+    // whether the parent field is a fast field (for _field_presence_json).
+    is_fast_field: bool,
     presence_fields: &'a mut PresenceFields,
 }
 
@@ -85,7 +100,12 @@ impl SubfieldsPopulator<'_> {
         match json_value.as_value() {
             ReferenceValue::Leaf(ReferenceValueLeaf::Null) => {}
             ReferenceValue::Leaf(_) => {
-                self.presence_fields.hashes.insert(path_hasher.finish_leaf());
+                if !self.is_fast_field {
+                    self.presence_fields
+                        .hashes
+                        .insert(path_hasher.finish_leaf());
+                }
+                // intentionally don't populate leafs in self.presence_fields.json_hashes.
             }
             ReferenceValue::Array(items) => {
                 for item in items {
@@ -107,8 +127,7 @@ impl SubfieldsPopulator<'_> {
         V: Value<'a>,
     {
         if self.populate_object_fields {
-            self.presence_fields.hashes
-                .insert(path_hasher.finish_intermediate());
+            self.choose_set().insert(path_hasher.finish_intermediate());
         }
         for (field_key, field_value) in json_obj {
             let mut child_path_hasher = path_hasher.clone();
@@ -117,7 +136,7 @@ impl SubfieldsPopulator<'_> {
                 while let Some(segment) = expanded_key.next() {
                     child_path_hasher.append(segment.as_bytes());
                     if self.populate_object_fields && expanded_key.peek().is_some() {
-                        self.presence_fields.hashes
+                        self.choose_set()
                             .insert(child_path_hasher.finish_intermediate());
                     }
                 }
@@ -125,6 +144,14 @@ impl SubfieldsPopulator<'_> {
                 child_path_hasher.append(field_key.as_bytes());
             };
             self.populate_field_presence_for_json_value(child_path_hasher, field_value);
+        }
+    }
+
+    fn choose_set(&mut self) -> &mut FnvHashSet<u64> {
+        if self.is_fast_field {
+            &mut self.presence_fields.json_hashes
+        } else {
+            &mut self.presence_fields.hashes
         }
     }
 }
