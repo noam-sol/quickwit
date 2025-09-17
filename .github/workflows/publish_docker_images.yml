@@ -96,7 +96,7 @@ jobs:
             QW_COMMIT_TAGS=${{ env.QW_COMMIT_TAGS }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: |
-            ${{ github.event_name == 'push' && format('{0}-{1}', steps.meta.outputs.tags, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
+            ${{ github.event_name == 'push' && format('{0}-{1},', steps.meta.outputs.tags, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
             ${{ github.event_name == 'push' && format('{0}/quickwit:vega_edge-{1}', steps.login-ecr-prod.outputs.registry, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
             ${{ github.event_name == 'workflow_dispatch' && format('{0}/quickwit:vega_edge-{1}-{2}', steps.login-ecr-prod.outputs.registry, inputs.image_suffix, matrix.platform == 'linux-amd64-latest' && 'amd64' || 'arm64') || '' }}
           cache-from: type=registry,ref=${{ steps.login-ecr-prod.outputs.registry }}/${{ env.REGISTRY_IMAGE }}:cache-${{ matrix.platform }}
@@ -139,7 +139,7 @@ jobs:
           inputs: |
             ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-amd64,${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge-arm64
           tags: |
-            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:main-${{ github.sha }}
+            ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:main-${{ github.sha }},
             ${{ steps.login-ecr-prod.outputs.registry }}/quickwit:vega_edge
           push: true
 
