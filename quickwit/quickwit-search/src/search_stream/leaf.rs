@@ -474,16 +474,25 @@ mod tests {
     use std::convert::TryInto;
     use std::str::from_utf8;
 
+    use anyhow::Context;
     use itertools::Itertools;
     use quickwit_indexing::TestSandbox;
     use quickwit_metastore::{ListSplitsRequestExt, MetastoreServiceStreamSplitsExt};
-    use quickwit_proto::metastore::{ListSplitsRequest, MetastoreService};
-    use quickwit_query::query_ast::qast_json_helper;
+    use quickwit_proto::metastore::{
+        IndexMetadataResponse, ListSplitsRequest, MetastoreError, MetastoreService,
+        UpdateIndexRequest,
+    };
+    use quickwit_proto::search::LeafSearchResponse;
+    use quickwit_query::query_ast::{qast_json_helper, QueryAst};
+    use quickwit_query::ElasticQueryDsl;
     use serde_json::json;
+    use tantivy::aggregation::AggregationLimitsGuard;
     use tantivy::time::{Duration, OffsetDateTime};
+    use tokio_util::sync::CancellationToken;
 
     use super::*;
     use crate::extract_split_and_footer_offsets;
+    use crate::leaf::leaf_search;
 
     #[tokio::test]
     async fn test_leaf_search_stream_to_csv_output_with_filtering() -> anyhow::Result<()> {
@@ -558,6 +567,212 @@ mod tests {
         );
         test_sandbox.assert_quit().await;
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_leaf_search_field_presence() -> anyhow::Result<()> {
+        // index a split without "index_field_presence_json" -
+        let doc_mapping = json!({
+            "index_field_presence": true,
+            "dynamic_mapping": {
+                "indexed": true,
+                "tokenizer": "raw",
+                "record": "position",
+                "fast": true,
+                "fieldnorms": true
+            },
+            "field_mappings": [
+                {
+                    "name": "body",
+                    "type": "text",
+                    "fast": true
+                }
+            ]
+        });
+        let test_sandbox = TestSandbox::create(
+            "index1",
+            &serde_json::to_string(&doc_mapping).unwrap(),
+            "",
+            &["body"],
+        )
+        .await?;
+        test_sandbox.add_documents(vec![json!({"body": "body1"}), json!({"body": "body2", "a":{"aa":{"aaa":1},"ab":2},"b":{"bb":{"bbb":1}},"c":"sdf","eventTime":"2025-01-01T00:00:00Z"})]).await?;
+        let split_1 = get_all_split_ids(&test_sandbox)
+            .await?
+            .into_iter()
+            .next()
+            .unwrap();
+
+        // update index + index a split with "index_field_presence_json" -
+        let mut updated_doc_mapping = doc_mapping.clone();
+        updated_doc_mapping["index_field_presence_json"] = json!(true);
+        update_index(&test_sandbox, &updated_doc_mapping).await?;
+        test_sandbox.add_documents(vec![json!({"body": "body1"}), json!({"body": "body2", "z":{"zz":{"zzz":1},"ab":2},"b":{"bb":{"bbb":1}},"c":"sdf","eventTime":"2025-01-01T00:00:00Z"}), json!({"body": "body3"})]).await?;
+        let split_2 = get_all_split_ids(&test_sandbox)
+            .await?
+            .into_iter()
+            .find(|id| *id != split_1)
+            .unwrap()
+            .clone();
+
+        // Assert query only in split_1 (old format)
+        let query = json!({
+            "bool": {
+                "must": {
+                    "exists": {
+                        "field": "a"
+                    }
+                }
+            }
+        });
+        let request = create_search_request(&test_sandbox, query);
+        let response = run_leaf_search(&test_sandbox, request).await?;
+
+        assert_eq!(response.partial_hits.len(), 1);
+        let hit = response.partial_hits.first().unwrap();
+        assert_eq!(hit.split_id, split_1);
+        assert_eq!(hit.doc_id, 1);
+
+        // Assert query only in split_2 (new format)
+        let query = json!({
+            "bool": {
+                "must": {
+                    "exists": {
+                        "field": "z"
+                    }
+                }
+            }
+        });
+        let request = create_search_request(&test_sandbox, query);
+        let response = run_leaf_search(&test_sandbox, request).await?;
+
+        assert_eq!(response.partial_hits.len(), 1);
+        let hit = response.partial_hits.first().unwrap();
+        assert_eq!(hit.split_id, split_2);
+        assert_eq!(hit.doc_id, 1);
+
+        // Assert query in both splits (old & new format)
+        let query = json!({
+            "bool": {
+                "must": {
+                    "exists": {
+                        "field": "b"
+                    }
+                }
+            }
+        });
+        let request = create_search_request(&test_sandbox, query);
+        let response = run_leaf_search(&test_sandbox, request).await?;
+
+        assert_eq!(response.partial_hits.len(), 2);
+
+        // Check that both splits are present with their expected doc_ids, regardless of order
+        let hit_split_1 = response
+            .partial_hits
+            .iter()
+            .find(|hit| hit.split_id == split_1)
+            .unwrap();
+        assert_eq!(hit_split_1.doc_id, 1);
+
+        let hit_split_2 = response
+            .partial_hits
+            .iter()
+            .find(|hit| hit.split_id == split_2)
+            .unwrap();
+        assert_eq!(hit_split_2.doc_id, 1);
+
+        // Assert query only leaf in split_2 (new format)
+        let query = json!({
+            "bool": {
+                "must": {
+                    "exists": {
+                        "field": "z.zz.zzz"
+                    }
+                }
+            }
+        });
+        let request = create_search_request(&test_sandbox, query);
+        let response = run_leaf_search(&test_sandbox, request).await?;
+
+        assert_eq!(response.partial_hits.len(), 1);
+        let hit = response.partial_hits.first().unwrap();
+        assert_eq!(hit.split_id, split_2);
+        assert_eq!(hit.doc_id, 1);
+
+        test_sandbox.assert_quit().await;
+        Ok(())
+    }
+
+    async fn update_index(
+        sandbox: &TestSandbox,
+        new_doc_mapping: &serde_json::Value,
+    ) -> anyhow::Result<IndexMetadataResponse, MetastoreError> {
+        let update_request = UpdateIndexRequest {
+            index_uid: Some(sandbox.index_uid()),
+            doc_mapping_json: serde_json::to_string(&new_doc_mapping).unwrap(),
+            search_settings_json: serde_json::to_string(&json!({
+                "default_search_fields": ["body"]
+            }))
+            .unwrap(),
+            indexing_settings_json: serde_json::to_string(&json!({})).unwrap(),
+            retention_policy_json: None,
+        };
+        sandbox.metastore().update_index(update_request).await
+    }
+
+    fn create_search_request(sandbox: &TestSandbox, query: serde_json::Value) -> SearchRequest {
+        let query: ElasticQueryDsl = serde_json::from_value(query).unwrap();
+        let query: QueryAst = query.try_into().unwrap();
+        SearchRequest {
+            index_id_patterns: vec![sandbox.index_uid().index_id.to_string()],
+            query_ast: serde_json::to_string(&query).unwrap(),
+            max_hits: 100,
+            ..Default::default()
+        }
+    }
+
+    async fn run_leaf_search(
+        sandbox: &TestSandbox,
+        request: SearchRequest,
+    ) -> std::result::Result<LeafSearchResponse, anyhow::Error> {
+        let splits = sandbox
+            .metastore()
+            .list_splits(ListSplitsRequest::try_from_index_uid(sandbox.index_uid()).unwrap())
+            .await
+            .context("failed to list splits")?
+            .collect_splits()
+            .await
+            .context("failed to collect splits")?;
+
+        let splits_offsets = splits
+            .into_iter()
+            .map(|split| extract_split_and_footer_offsets(&split.split_metadata))
+            .collect();
+        let searcher_context = Arc::new(SearcherContext::for_test());
+        leaf_search(
+            CancellationToken::new(),
+            searcher_context,
+            Arc::new(request),
+            sandbox.storage(),
+            splits_offsets,
+            sandbox.doc_mapper(),
+            AggregationLimitsGuard::default(),
+        )
+        .await
+        .context("leaf search failed")
+    }
+
+    async fn get_all_split_ids(sandbox: &TestSandbox) -> anyhow::Result<HashSet<String>> {
+        let split_ids = sandbox
+            .metastore()
+            .list_splits(ListSplitsRequest::try_from_index_uid(sandbox.index_uid()).unwrap())
+            .await
+            .context("failed to list splits")?
+            .collect_split_ids()
+            .await
+            .context("failed to collect splits")?;
+        let set: HashSet<String> = split_ids.into_iter().collect();
+        Ok(set)
     }
 
     #[tokio::test]
