@@ -64,6 +64,7 @@ where for<'a> T: Deserialize<'a> {
     Ok(deserialized)
 }
 
+/// Test deserialize(.json) == Test deserialize(.expected.json)
 fn test_backward_compatibility_single_case<T>(path: &Path) -> anyhow::Result<()>
 where T: TestableForRegression + std::fmt::Debug {
     println!("---\nTest deserialization of {}", path.display());
@@ -76,6 +77,7 @@ where T: TestableForRegression + std::fmt::Debug {
     Ok(())
 }
 
+/// Test deserialize(.json) == Test deserialize(.expected.json)
 fn test_backward_compatibility<T>(test_dir: &Path) -> anyhow::Result<()>
 where T: TestableForRegression + std::fmt::Debug {
     for entry in
@@ -92,6 +94,7 @@ where T: TestableForRegression + std::fmt::Debug {
     Ok(())
 }
 
+/// Test serialize(deserialize(expected.json)) == deserialize(expected.json)
 fn test_and_update_expected_files_single_case<T>(expected_path: &Path) -> anyhow::Result<bool>
 where for<'a> T: std::fmt::Debug + Serialize + Deserialize<'a> {
     let expected: T = deserialize_json_file(Path::new(&expected_path))?;
@@ -111,6 +114,7 @@ where for<'a> T: std::fmt::Debug + Serialize + Deserialize<'a> {
     Ok(true)
 }
 
+/// Test serialize(deserialize(expected.json)) == deserialize(expected.json)
 fn test_and_update_expected_files<T>(test_dir: &Path) -> anyhow::Result<()>
 where for<'a> T: std::fmt::Debug + Deserialize<'a> + Serialize {
     let mut updated_expected_files = Vec::new();
@@ -133,6 +137,8 @@ where for<'a> T: std::fmt::Debug + Deserialize<'a> + Serialize {
     Ok(())
 }
 
+/// Test deserialize(serialize(sample_func())) == deserialize(v0.x.json)
+/// where sample_func() is TestableForRegression::sample_for_regression()
 fn test_and_create_new_test<T>(test_dir: &Path, sample: T) -> anyhow::Result<()>
 where for<'a> T: Serialize {
     let sample_json_value = serde_json::to_value(&sample)?;
