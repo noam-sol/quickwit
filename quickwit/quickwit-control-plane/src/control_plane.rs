@@ -31,7 +31,7 @@ use quickwit_cluster::{
 };
 use quickwit_common::pubsub::EventSubscriber;
 use quickwit_common::uri::Uri;
-use quickwit_common::{shared_consts, Progress};
+use quickwit_common::{rate_limited_info, shared_consts, Progress};
 use quickwit_config::service::QuickwitService;
 use quickwit_config::{ClusterConfig, IndexConfig, IndexTemplate, SourceConfig};
 use quickwit_ingest::{IngesterPool, LocalShardsUpdate};
@@ -404,6 +404,14 @@ impl Handler<RebuildPlan> for ControlPlane {
         _message: RebuildPlan,
         _ctx: &ActorContext<Self>,
     ) -> Result<(), ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle RebuildPlan - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle RebuildPlan - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         self.indexing_scheduler.rebuild_plan(&self.model);
         Ok(())
     }
@@ -418,6 +426,14 @@ impl Handler<ShardPositionsUpdate> for ControlPlane {
         shard_positions_update: ShardPositionsUpdate,
         ctx: &ActorContext<Self>,
     ) -> Result<(), ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle ShardPositionsUpdate - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle ShardPositionsUpdate - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         debug!(shard_positions_update=?shard_positions_update, "shard positions update");
         let Some(shard_entries) = self
             .model
@@ -462,6 +478,15 @@ impl Handler<ControlPlanLoop> for ControlPlane {
         _message: ControlPlanLoop,
         ctx: &ActorContext<Self>,
     ) -> Result<(), ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle ControlPlanLoop - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle ControlPlanLoop - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
+
         if self.disable_control_loop {
             return Ok(());
         }
@@ -576,6 +601,14 @@ impl Handler<UpdateIndexRequest> for ControlPlane {
         request: UpdateIndexRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle UpdateIndexRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle UpdateIndexRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         debug!(%index_uid, "updating index");
 
@@ -617,6 +650,14 @@ impl Handler<DeleteIndexRequest> for ControlPlane {
         request: DeleteIndexRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle DeleteIndexRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle DeleteIndexRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         debug!(%index_uid, "deleting index");
 
@@ -660,6 +701,14 @@ impl Handler<AddSourceRequest> for ControlPlane {
         request: AddSourceRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle AddSourceRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle AddSourceRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         let source_config: SourceConfig =
             match serde_utils::from_json_str(&request.source_config_json) {
@@ -698,6 +747,14 @@ impl Handler<UpdateSourceRequest> for ControlPlane {
         request: UpdateSourceRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle UpdateSourceRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle UpdateSourceRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         let source_config: SourceConfig =
             match serde_utils::from_json_str(&request.source_config_json) {
@@ -741,6 +798,14 @@ impl Handler<ToggleSourceRequest> for ControlPlane {
         request: ToggleSourceRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle ToggleSourceRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle ToggleSourceRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         let source_id = request.source_id.clone();
         let enable = request.enable;
@@ -777,6 +842,14 @@ impl Handler<DeleteSourceRequest> for ControlPlane {
         request: DeleteSourceRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<ControlPlaneResult<EmptyResponse>, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle DeleteSourceRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle DeleteSourceRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let index_uid: IndexUid = request.index_uid().clone();
         let source_id = request.source_id.clone();
 
@@ -828,6 +901,14 @@ impl Handler<PruneShardsRequest> for ControlPlane {
         request: PruneShardsRequest,
         _ctx: &ActorContext<Self>,
     ) -> Result<ControlPlaneResult<EmptyResponse>, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle PruneShardsRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle PruneShardsRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let interval = request
             .interval_secs
             .map(|interval_secs| Duration::from_secs(interval_secs as u64))
@@ -861,6 +942,14 @@ impl Handler<GetOrCreateOpenShardsRequest> for ControlPlane {
         request: GetOrCreateOpenShardsRequest,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle GetOrCreateOpenShardsRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle GetOrCreateOpenShardsRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         if let Err(metastore_error) = self
             .auto_create_indexes(&request.subrequests, ctx.progress())
             .await
@@ -891,6 +980,14 @@ impl Handler<AdviseResetShardsRequest> for ControlPlane {
         request: AdviseResetShardsRequest,
         _ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle AdviseResetShardsRequest - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle AdviseResetShardsRequest - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         let response = self
             .ingest_controller
             .advise_reset_shards(request, &self.model);
@@ -907,6 +1004,14 @@ impl Handler<LocalShardsUpdate> for ControlPlane {
         local_shards_update: LocalShardsUpdate,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle LocalShardsUpdate - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle LocalShardsUpdate - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         if let Err(metastore_error) = self
             .ingest_controller
             .handle_local_shards_update(local_shards_update, &mut self.model, ctx.progress())
@@ -931,6 +1036,14 @@ impl Handler<GetDebugInfo> for ControlPlane {
         _: GetDebugInfo,
         _ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle GetDebugInfo - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle GetDebugInfo - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         Ok(self.debug_info())
     }
 }
@@ -1000,6 +1113,14 @@ impl Handler<IndexerJoined> for ControlPlane {
         message: IndexerJoined,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle IndexerJoined - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle IndexerJoined - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         info!(
             "indexer `{}` joined the cluster: rebalancing shards and rebuilding indexing plan",
             message.0.node_id()
@@ -1030,6 +1151,14 @@ impl Handler<IndexerLeft> for ControlPlane {
         message: IndexerLeft,
         ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle IndexerLeft - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle IndexerLeft - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         info!(
             "indexer `{}` left the cluster: rebalancing shards and rebuilding indexing plan",
             message.0.node_id()
@@ -1056,6 +1185,14 @@ impl Handler<RebalanceShardsCallback> for ControlPlane {
         message: RebalanceShardsCallback,
         _ctx: &ActorContext<Self>,
     ) -> Result<Self::Reply, ActorExitStatus> {
+        rate_limited_info!(limit_per_min = 10, "handle RebalanceShardsCallback - start");
+        struct HandleExitLog;
+        impl Drop for HandleExitLog {
+            fn drop(&mut self) {
+                rate_limited_info!(limit_per_min = 10, "handle RebalanceShardsCallback - finished");
+            }
+        }
+        let _handle_exit_log = HandleExitLog{};
         info!(
             "closing {} shards after rebalance",
             message.closed_shards.len()
